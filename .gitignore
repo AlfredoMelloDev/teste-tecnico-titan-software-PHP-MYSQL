@@ -1,0 +1,9 @@
+# Configurações locais do VS Code
+/.vscode/
+
+# Contém as credenciais locais do banco
+/config/database.php
+
+# Ignora os logs, mas mantém a pasta no projeto
+/storage/logs/*
+!/storage/logs/.gitkeep
