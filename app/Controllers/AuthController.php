@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\Auth;
 use App\Core\Controller;
 use App\Models\User;
 
@@ -52,7 +53,7 @@ final class AuthController extends Controller
         ) {
             // A mensagem genérica não revela se foi o e-mail ou a senha que falhou.
             $_SESSION['login_error'] =
-                'Ops, Email ou Senha inválido';
+                'Email ou Senha incorretos. Por favor, tente novamente.';
 
             $_SESSION['login_email'] = $email;
 
@@ -60,16 +61,18 @@ final class AuthController extends Controller
             exit;
         }
 
-        // Troca o identificador da sessão depois da autenticação.
-        session_regenerate_id(true);
-
-        $_SESSION['auth_user'] = [
-            'id' => (int) $user['id_user'],
-            'name' => $user['name'],
-            'email' => $user['email'],
-        ];
+        // Registra o usuário e renova o identificador da sessão.
+        Auth::login($user);
 
         header('Location: /dashboard');
+        exit;
+    }
+
+    public function logout(): void
+    {
+        Auth::logout();
+
+        header('Location: /login');
         exit;
     }
 }

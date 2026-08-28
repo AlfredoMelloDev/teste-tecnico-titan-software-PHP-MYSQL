@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Core\Router;
 use App\Controllers\AuthController;
 use App\Controllers\UserController;
-use App\Core\Router;
+use App\Controllers\ServiceController;
+use App\Controllers\DashboardController;
 
 require_once dirname(__DIR__) . '/app/Core/Autoloader.php';
 
@@ -25,9 +27,13 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
+// Cria o roteador e registra as rotas da aplicação.
 $router = new Router();
 $authController = new AuthController();
 $userController = new UserController();
+$serviceController = new ServiceController();
+$dashboardController = new DashboardController();
+
 
 $router->get('/', function (): void {
     header('Location: /login');
@@ -46,6 +52,26 @@ $router->get(
 $router->post(
     '/users',
     [$userController, 'store']
+);
+
+$router->get(
+    '/dashboard',
+    [$dashboardController, 'index']
+);
+
+$router->post(
+    '/logout',
+    [$authController, 'logout']
+);
+
+$router->get(
+    '/services/create',
+    [$serviceController, 'showCreate']
+);
+
+$router->post(
+    '/services',
+    [$serviceController, 'store']
 );
 
 // Localiza e executa a rota correspondente à requisição atual.
