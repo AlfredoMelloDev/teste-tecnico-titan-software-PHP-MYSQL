@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\Auth;
-use App\Core\Controller;
-use App\Models\Service;
 use Throwable;
+use App\Core\Auth;
+use App\Models\Service;
+use App\Core\Controller;
+use App\Services\CommissionCalculator;
 
 final class ServiceController extends Controller
 {
     private Service $services;
+    private CommissionCalculator $commissionCalculator;
 
     public function __construct()
     {
         // O Model concentra todas as operações da tabela de serviços.
         $this->services = new Service();
+        $this->commissionCalculator = new CommissionCalculator();
     }
 
     public function showCreate(): void
@@ -325,6 +328,83 @@ final class ServiceController extends Controller
 
             $_SESSION['dashboard_error'] =
                 'Não foi possível excluir o serviço. Tente novamente.';
+        }
+
+        header('Location: /dashboard');
+        exit;
+    }
+
+    /**
+     * Finaliza o serviço e calcula a comissão do funcionário responsável.
+     */
+    public function finish(): void
+    {
+        Auth::requireLogin();
+
+        $serviceId = filter_var(
+            $_POST['service_id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        if ($serviceId === false || $serviceId === null || $serviceId < 1) {
+            $_SESSION['dashboard_error'] = 'Serviço inválido.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
+        try {
+            $service = $this->services->findById($serviceId);
+
+            if ($service === null) {
+                $_SESSION['dashboard_error'] =
+                    'O serviço informado não foi encontrado.';
+
+                header('Location: /dashboard');
+                exit;
+            }
+
+            if ($service['finished_at'] !== null) {
+                $_SESSION['dashboard_error'] =
+                    'Este serviço já foi finalizado.';
+
+                header('Location: /dashboard');
+                exit;
+            }
+
+            $commission = $this->commissionCalculator->calculate(
+                (float) $service['price']
+            );
+
+            $finished = $this->services->finish(
+                $serviceId,
+                $commission
+            );
+
+            if (!$finished) {
+                $_SESSION['dashboard_error'] =
+                    'Não foi possível finalizar o serviço.';
+            } else {
+                $_SESSION['dashboard_success'] =
+                    'Serviço finalizado com sucesso. Comissão: R$ '
+                    . number_format($commission, 2, ',', '.');
+            }
+        } catch (\Throwable $exception) {
+            // O erro completo fica no log para não expor detalhes internos na tela.
+            error_log(
+                sprintf(
+                    "[%s] Falha ao finalizar o serviço %d: %s%s",
+                    date('Y-m-d H:i:s'),
+                    $serviceId,
+                    $exception->getMessage(),
+                    PHP_EOL
+                ),
+                3,
+                dirname(__DIR__, 2) . '/storage/logs/app.log'
+            );
+
+            $_SESSION['dashboard_error'] =
+                'Não foi possível finalizar o serviço. Tente novamente.';
         }
 
         header('Location: /dashboard');

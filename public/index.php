@@ -100,6 +100,12 @@ $router->post(
     [$serviceController, 'delete']
 );
 
+// A finalização altera o serviço, por isso utiliza uma requisição POST.
+$router->post(
+    '/services/finish',
+    [$serviceController, 'finish']
+);
+
 // Localiza e executa a rota correspondente à requisição atual.
 $router->dispatch(
     $_SERVER['REQUEST_METHOD'] ?? 'GET',

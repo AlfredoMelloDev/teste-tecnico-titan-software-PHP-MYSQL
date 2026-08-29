@@ -269,4 +269,27 @@ final class Service
 
         return $statement->rowCount() > 0;
     }
+
+    // Finaliza um serviço pendente e registra o valor da comissão.
+    public function finish(int $serviceId, float $commission): bool
+    {
+        $sql = '
+        UPDATE `service`
+        SET
+            finished_at = CURRENT_TIMESTAMP,
+            commission_user = :commission
+        WHERE id_service = :service_id
+          AND finished_at IS NULL
+    ';
+
+        $statement = $this->connection->prepare($sql);
+        $statement->execute([
+            // O formato com ponto decimal é o esperado pelo campo DECIMAL do MySQL.
+            'commission' => number_format($commission, 2, '.', ''),
+            'service_id' => $serviceId,
+        ]);
+
+        // Nenhuma linha alterada também indica que o serviço já estava finalizado.
+        return $statement->rowCount() > 0;
+    }
 }

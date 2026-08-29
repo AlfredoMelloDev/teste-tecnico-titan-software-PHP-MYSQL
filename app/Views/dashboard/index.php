@@ -303,6 +303,19 @@
                                             href="/services/edit?id=<?= (int) $service['id_service'] ?>">
                                             Editar
                                         </a>
+
+                                        <!-- A comissão será calculada pelo servidor ao finalizar. -->
+                                        <form
+                                            action="/services/finish"
+                                            method="post"
+                                            data-confirm-finish>
+                                            <input
+                                                type="hidden"
+                                                name="service_id"
+                                                value="<?= (int) $service['id_service'] ?>">
+
+                                            <button type="submit">Finalizar</button>
+                                        </form>
                                     <?php else: ?>
                                         <span>Finalizado</span>
                                     <?php endif; ?>
