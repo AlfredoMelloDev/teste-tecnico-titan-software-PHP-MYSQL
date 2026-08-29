@@ -44,6 +44,7 @@ $router->get('/login', [$authController, 'showLogin']);
 
 $router->post('/login', [$authController, 'login']);
 
+// Rota para exibir o formulário de criação de usuário.
 $router->get(
     '/users/create',
     [$userController, 'showCreate']
@@ -54,6 +55,9 @@ $router->post(
     [$userController, 'store']
 );
 
+
+
+// Rota para exibir o dashboard do usuário logado.
 $router->get(
     '/dashboard',
     [$dashboardController, 'index']
@@ -64,6 +68,9 @@ $router->post(
     [$authController, 'logout']
 );
 
+
+
+// Rota para exibir o formulário de criação de serviço.
 $router->get(
     '/services/create',
     [$serviceController, 'showCreate']
@@ -73,6 +80,21 @@ $router->post(
     '/services',
     [$serviceController, 'store']
 );
+
+
+
+// Rota para exibir o formulário de edição de serviço.
+$router->get(
+    '/services/edit',
+    [$serviceController, 'showEdit']
+);
+
+$router->post(
+    '/services/update',
+    [$serviceController, 'update']
+);
+
+
 
 // Localiza e executa a rota correspondente à requisição atual.
 $router->dispatch(

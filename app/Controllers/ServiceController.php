@@ -54,7 +54,7 @@ final class ServiceController extends Controller
 
         if (
             $description === ''
-            || mb_strlen($description) > 255
+            || strlen($description) > 255
             || $price === null
         ) {
             $this->redirectWithError(
@@ -83,8 +83,8 @@ final class ServiceController extends Controller
 
             error_log(
                 '[' . date('Y-m-d H:i:s') . '] '
-                . $exception->getMessage()
-                . PHP_EOL,
+                    . $exception->getMessage()
+                    . PHP_EOL,
                 3,
                 dirname(__DIR__, 2) . '/storage/logs/app.log'
             );
@@ -98,6 +98,137 @@ final class ServiceController extends Controller
         exit;
     }
 
+    public function showEdit(): void
+    {
+        Auth::requireLogin();
+
+        $serviceId = filter_var(
+            $_GET['id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        if ($serviceId === false || $serviceId < 1) {
+            $_SESSION['dashboard_error'] =
+                'O serviço informado é inválido.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
+        $service = $this->services->findById($serviceId);
+
+        if ($service === null) {
+            $_SESSION['dashboard_error'] =
+                'O serviço não foi encontrado.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
+        if ($service['finished_at'] !== null) {
+            $_SESSION['dashboard_error'] =
+                'Um serviço finalizado não pode ser alterado.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
+        $error = $_SESSION['service_edit_error'] ?? null;
+        $old = $_SESSION['service_edit_old'] ?? [];
+
+        unset(
+            $_SESSION['service_edit_error'],
+            $_SESSION['service_edit_old']
+        );
+
+        $this->view('services/edit', [
+            'title' => 'Editar serviço',
+            'service' => $service,
+            'error' => $error,
+            'old' => $old,
+        ]);
+    }
+
+    public function update(): void
+    {
+        Auth::requireLogin();
+
+        $serviceId = filter_var(
+            $_POST['service_id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        $description = trim($_POST['description'] ?? '');
+        $priceInput = trim($_POST['price'] ?? '');
+        $price = $this->normalizePrice($priceInput);
+
+        if (
+            $serviceId === false
+            || $serviceId < 1
+            || $description === ''
+            || strlen($description) > 255
+            || $price === null
+        ) {
+            $this->redirectEditWithError(
+                (int) $serviceId,
+                'Informe uma descrição e um valor válido.',
+                $description,
+                $priceInput
+            );
+        }
+
+        $service = $this->services->findById($serviceId);
+
+        if ($service === null || $service['finished_at'] !== null) {
+            $_SESSION['dashboard_error'] =
+                'O serviço não existe ou já foi finalizado.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
+        try {
+            $this->services->update(
+                $serviceId,
+                $description,
+                $price
+            );
+
+            $_SESSION['dashboard_success'] =
+                'Serviço atualizado com sucesso.';
+        } catch (Throwable $exception) {
+            error_log(
+                '[' . date('Y-m-d H:i:s') . '] '
+                    . $exception->getMessage()
+                    . PHP_EOL,
+                3,
+                dirname(__DIR__, 2) . '/storage/logs/app.log'
+            );
+
+            $_SESSION['dashboard_error'] =
+                'Não foi possível atualizar o serviço.';
+        }
+
+        header('Location: /dashboard');
+        exit;
+    }
+
+    private function redirectEditWithError(
+        int $serviceId,
+        string $message,
+        string $description,
+        string $price
+    ): never {
+        $_SESSION['service_edit_error'] = $message;
+        $_SESSION['service_edit_old'] = [
+            'description' => $description,
+            'price' => $price,
+        ];
+
+        header('Location: /services/edit?id=' . $serviceId);
+        exit;
+    }
+    
     private function normalizePrice(string $price): ?string
     {
         // Permite que o usuário use vírgula ou ponto como separador decimal.
