@@ -94,7 +94,11 @@ $router->post(
     [$serviceController, 'update']
 );
 
-
+// A exclusão é feita por POST para não remover registros por meio de um link.
+$router->post(
+    '/services/delete',
+    [$serviceController, 'delete']
+);
 
 // Localiza e executa a rota correspondente à requisição atual.
 $router->dispatch(

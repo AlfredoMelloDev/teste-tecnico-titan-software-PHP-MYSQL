@@ -249,4 +249,24 @@ final class Service
             'price' => $price,
         ]);
     }
+
+    /**
+     * Exclui um serviço pelo seu identificador.
+     *
+     * O retorno informa se algum registro realmente foi removido.
+     */
+    public function delete(int $serviceId): bool
+    {
+        $sql = '
+        DELETE FROM `service`
+        WHERE id_service = :service_id
+    ';
+
+        $statement = $this->connection->prepare($sql);
+        $statement->execute([
+            'service_id' => $serviceId,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
 }

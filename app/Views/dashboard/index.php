@@ -24,11 +24,13 @@
 
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
+    <script src="/assets/js/app.js" defer></script>
 </head>
 
 <body>
@@ -99,11 +101,11 @@
 
                 <strong>
                     R$ <?= number_format(
-                        (float) $totalValue,
-                        2,
-                        ',',
-                        '.'
-                    ) ?>
+                            (float) $totalValue,
+                            2,
+                            ',',
+                            '.'
+                        ) ?>
                 </strong>
             </article>
         </section>
@@ -130,11 +132,11 @@
                             —
 
                             R$ <?= number_format(
-                                (float) $pendingService['price'],
-                                2,
-                                ',',
-                                '.'
-                            ) ?>
+                                    (float) $pendingService['price'],
+                                    2,
+                                    ',',
+                                    '.'
+                                ) ?>
                         </li>
                     <?php endforeach; ?>
                 </ul>
@@ -164,11 +166,10 @@
                             name="description"
                             maxlength="255"
                             value="<?= htmlspecialchars(
-                                $filters['description'],
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>"
-                        >
+                                        $filters['description'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>">
                     </div>
 
                     <div>
@@ -179,11 +180,10 @@
                             name="user"
                             maxlength="150"
                             value="<?= htmlspecialchars(
-                                $filters['user'],
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>"
-                        >
+                                        $filters['user'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>">
                     </div>
 
                     <div>
@@ -195,8 +195,7 @@
                                 value="Pendente"
                                 <?= $filters['status'] === 'Pendente'
                                     ? 'selected'
-                                    : '' ?>
-                            >
+                                    : '' ?>>
                                 Pendente
                             </option>
 
@@ -204,8 +203,7 @@
                                 value="Finalizado"
                                 <?= $filters['status'] === 'Finalizado'
                                     ? 'selected'
-                                    : '' ?>
-                            >
+                                    : '' ?>>
                                 Finalizado
                             </option>
                         </select>
@@ -218,11 +216,10 @@
                             id="start_date"
                             name="start_date"
                             value="<?= htmlspecialchars(
-                                $filters['start_date'],
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>"
-                        >
+                                        $filters['start_date'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>">
                     </div>
 
                     <div>
@@ -232,11 +229,10 @@
                             id="end_date"
                             name="end_date"
                             value="<?= htmlspecialchars(
-                                $filters['end_date'],
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>"
-                        >
+                                        $filters['end_date'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>">
                     </div>
 
                     <button type="submit">Filtrar</button>
@@ -285,11 +281,11 @@
 
                                 <td>
                                     R$ <?= number_format(
-                                        (float) $service['price'],
-                                        2,
-                                        ',',
-                                        '.'
-                                    ) ?>
+                                            (float) $service['price'],
+                                            2,
+                                            ',',
+                                            '.'
+                                        ) ?>
                                 </td>
 
                                 <td>
@@ -304,13 +300,25 @@
                                     <?php if ($service['finished_at'] === null): ?>
                                         <!-- Somente serviços pendentes podem ser editados. -->
                                         <a
-                                            href="/services/edit?id=<?= (int) $service['id_service'] ?>"
-                                        >
+                                            href="/services/edit?id=<?= (int) $service['id_service'] ?>">
                                             Editar
                                         </a>
                                     <?php else: ?>
                                         <span>Finalizado</span>
                                     <?php endif; ?>
+
+                                    <!-- A exclusão é enviada por formulário, e não por uma URL. -->
+                                    <form
+                                        action="/services/delete"
+                                        method="post"
+                                        data-confirm-delete>
+                                        <input
+                                            type="hidden"
+                                            name="service_id"
+                                            value="<?= (int) $service['id_service'] ?>">
+
+                                        <button type="submit">Excluir</button>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -320,4 +328,5 @@
         </section>
     </main>
 </body>
+
 </html>

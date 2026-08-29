@@ -228,7 +228,7 @@ final class ServiceController extends Controller
         header('Location: /services/edit?id=' . $serviceId);
         exit;
     }
-    
+
     private function normalizePrice(string $price): ?string
     {
         // Permite que o usuário use vírgula ou ponto como separador decimal.
@@ -277,6 +277,57 @@ final class ServiceController extends Controller
         ];
 
         header('Location: /services/create');
+        exit;
+    }
+
+    /**
+     * Processa a exclusão enviada pelo dashboard.
+     */
+    public function delete(): void
+    {
+        Auth::requireLogin();
+
+        $serviceId = filter_var(
+            $_POST['service_id'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        if ($serviceId === false || $serviceId === null || $serviceId < 1) {
+            $_SESSION['dashboard_error'] = 'Serviço inválido.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
+        try {
+            $deleted = $this->services->delete($serviceId);
+
+            if (!$deleted) {
+                $_SESSION['dashboard_error'] =
+                    'O serviço informado não foi encontrado.';
+            } else {
+                $_SESSION['dashboard_success'] =
+                    'Serviço excluído com sucesso.';
+            }
+        } catch (Throwable $exception) {
+            // O detalhe técnico fica no log, sem ser apresentado ao usuário.
+            error_log(
+                sprintf(
+                    "[%s] Falha ao excluir o serviço %d: %s%s",
+                    date('Y-m-d H:i:s'),
+                    $serviceId,
+                    $exception->getMessage(),
+                    PHP_EOL
+                ),
+                3,
+                dirname(__DIR__, 2) . '/storage/logs/app.log'
+            );
+
+            $_SESSION['dashboard_error'] =
+                'Não foi possível excluir o serviço. Tente novamente.';
+        }
+
+        header('Location: /dashboard');
         exit;
     }
 }
