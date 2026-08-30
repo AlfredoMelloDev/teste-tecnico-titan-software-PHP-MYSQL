@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Csrf;
+
 /**
  * Variáveis fornecidas pelo ServiceController.
  *
@@ -8,16 +10,20 @@
  * @var array<string, string> $old
  */
 
+// O token CSRF é incluído em todos os formulários que alteram dados.
+$csrfToken = Csrf::token();
 ?>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
 </head>
+
 <body>
     <main>
         <h1>Cadastrar Novo Serviço</h1>
@@ -29,7 +35,14 @@
         <?php endif; ?>
 
         <form action="/services" method="post">
+
+            // Token CSRF
+            <input
+                type="hidden"
+                name="_token"
+                value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <div>
+                
                 <label for="description">Descrição</label>
                 <input
                     type="text"
@@ -37,12 +50,11 @@
                     name="description"
                     maxlength="255"
                     value="<?= htmlspecialchars(
-                        $old['description'] ?? '',
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
-                    required
-                >
+                                $old['description'] ?? '',
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>"
+                    required>
             </div>
 
             <div>
@@ -57,12 +69,11 @@
                     inputmode="decimal"
                     placeholder="Ex.: 250,00"
                     value="<?= htmlspecialchars(
-                        $old['price'] ?? '',
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
-                    required
-                >
+                                $old['price'] ?? '',
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>"
+                    required>
             </div>
 
             <button type="submit">Cadastrar</button>
@@ -71,4 +82,5 @@
         <a href="/dashboard">Voltar para o dashboard</a>
     </main>
 </body>
+
 </html>

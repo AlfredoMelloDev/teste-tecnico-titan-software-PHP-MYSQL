@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\Controller;
+use App\Core\Csrf;
 use App\Models\User;
+use App\Core\Controller;
 
 final class UserController extends Controller
 {
@@ -36,6 +37,15 @@ final class UserController extends Controller
 
     public function store(): void
     {
+        // Validação do token CSRF
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['user_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /users/create');
+            exit;
+        }
+
         $name = trim($_POST['name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';

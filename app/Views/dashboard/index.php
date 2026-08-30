@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Csrf;
+
 /**
  * Dados preparados pelo DashboardController.
  *
@@ -19,6 +21,9 @@
  *     end_date: string
  * } $filters
  */
+
+// O token CSRF é gerado no início do script para que seja incluído em todos os formulários.
+$csrfToken = Csrf::token();
 
 ?>
 
@@ -87,6 +92,11 @@
         </p>
 
         <form action="/logout" method="post">
+            // O token CSRF é incluído em todos os formulários que alteram dados.
+            <input
+                type="hidden"
+                name="_token"
+                value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <button type="submit">Sair</button>
         </form>
     </header>
@@ -309,6 +319,11 @@
                                             action="/services/finish"
                                             method="post"
                                             data-confirm-finish>
+                                            // O token CSRF é incluído em todos os formulários que alteram dados.
+                                            <input
+                                                type="hidden"
+                                                name="_token"
+                                                value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                                             <input
                                                 type="hidden"
                                                 name="service_id"
@@ -325,6 +340,13 @@
                                         action="/services/delete"
                                         method="post"
                                         data-confirm-delete>
+                                        
+                                        // O token CSRF é incluído em todos os formulários que alteram dados.
+                                        <input
+                                            type="hidden"
+                                            name="_token"
+                                            value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+
                                         <input
                                             type="hidden"
                                             name="service_id"

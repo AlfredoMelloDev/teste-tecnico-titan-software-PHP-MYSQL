@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\Csrf;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Models\User;
@@ -17,8 +18,10 @@ final class AuthController extends Controller
         $this->users = new User();
     }
 
+
     public function showLogin(): void
     {
+
         $error = $_SESSION['login_error'] ?? null;
         $success = $_SESSION['login_success'] ?? null;
         $oldEmail = $_SESSION['login_email'] ?? '';
@@ -40,6 +43,15 @@ final class AuthController extends Controller
 
     public function login(): void
     {
+        // Validação do token CSRF
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['login_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /login');
+            exit;
+        }
+
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
 
@@ -70,6 +82,15 @@ final class AuthController extends Controller
 
     public function logout(): void
     {
+        // Validação do token CSRF
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['dashboard_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
         Auth::logout();
 
         header('Location: /login');

@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Csrf;
+
 /**
  * Variáveis fornecidas pelo ServiceController.
  *
@@ -20,16 +22,20 @@ $price = $old['price']
         ''
     );
 
+// Gera o token CSRF para proteger o formulário contra ataques de falsificação de requisições.
+$csrfToken = Csrf::token();
 ?>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
 </head>
+
 <body>
     <main>
         <h1>Editar Serviço</h1>
@@ -46,12 +52,17 @@ $price = $old['price']
         <?php endif; ?>
 
         <form action="/services/update" method="post">
+
+            // Token CSFR
+            <input
+                type="hidden"
+                name="_token"
+                value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <!-- O identificador não deve ser alterado pelo formulário. -->
             <input
                 type="hidden"
                 name="service_id"
-                value="<?= (int) $service['id_service'] ?>"
-            >
+                value="<?= (int) $service['id_service'] ?>">
 
             <div>
                 <label for="description">Descrição</label>
@@ -61,12 +72,11 @@ $price = $old['price']
                     name="description"
                     maxlength="255"
                     value="<?= htmlspecialchars(
-                        $description,
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
-                    required
-                >
+                                $description,
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>"
+                    required>
             </div>
 
             <div>
@@ -78,12 +88,11 @@ $price = $old['price']
                     maxlength="12"
                     inputmode="decimal"
                     value="<?= htmlspecialchars(
-                        $price,
-                        ENT_QUOTES,
-                        'UTF-8'
-                    ) ?>"
-                    required
-                >
+                                $price,
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>"
+                    required>
             </div>
 
             <button type="submit">Salvar alterações</button>
@@ -92,4 +101,5 @@ $price = $old['price']
         <a href="/dashboard">Cancelar e voltar</a>
     </main>
 </body>
+
 </html>

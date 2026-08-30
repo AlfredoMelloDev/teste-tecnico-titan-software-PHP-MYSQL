@@ -5,21 +5,25 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use Throwable;
+use App\Core\Csrf;
 use App\Core\Auth;
 use App\Models\Service;
 use App\Core\Controller;
+use App\Services\MailService;
 use App\Services\CommissionCalculator;
 
 final class ServiceController extends Controller
 {
     private Service $services;
     private CommissionCalculator $commissionCalculator;
+    private MailService $mailService;
 
     public function __construct()
     {
         // O Model concentra todas as operações da tabela de serviços.
         $this->services = new Service();
         $this->commissionCalculator = new CommissionCalculator();
+        $this->mailService = new MailService();
     }
 
     public function showCreate(): void
@@ -47,6 +51,15 @@ final class ServiceController extends Controller
     public function store(): void
     {
         Auth::requireLogin();
+
+        // Validação do token CSRF
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['dashboard_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /dashboard');
+            exit;
+        }
 
         // Remove espaços desnecessários antes de validar os campos.
         $description = trim($_POST['description'] ?? '');
@@ -155,6 +168,15 @@ final class ServiceController extends Controller
     public function update(): void
     {
         Auth::requireLogin();
+
+        // Validação do token CSRF
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['dashboard_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /dashboard');
+            exit;
+        }
 
         $serviceId = filter_var(
             $_POST['service_id'] ?? null,
@@ -290,6 +312,15 @@ final class ServiceController extends Controller
     {
         Auth::requireLogin();
 
+        // O token CSRF é verificado antes de qualquer alteração de dados.
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['dashboard_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
         $serviceId = filter_var(
             $_POST['service_id'] ?? null,
             FILTER_VALIDATE_INT
@@ -341,6 +372,15 @@ final class ServiceController extends Controller
     {
         Auth::requireLogin();
 
+        // A validação do token CSRF protege contra ataques de falsificação de requisições.
+        if (!Csrf::validate($_POST['_token'] ?? null)) {
+            $_SESSION['dashboard_error'] =
+                'A solicitação expirou. Atualize a página e tente novamente.';
+
+            header('Location: /dashboard');
+            exit;
+        }
+
         $serviceId = filter_var(
             $_POST['service_id'] ?? null,
             FILTER_VALIDATE_INT
@@ -385,9 +425,60 @@ final class ServiceController extends Controller
                 $_SESSION['dashboard_error'] =
                     'Não foi possível finalizar o serviço.';
             } else {
+                $formattedPrice = number_format(
+                    (float) $service['price'],
+                    2,
+                    ',',
+                    '.'
+                );
+
+                $formattedCommission = number_format(
+                    $commission,
+                    2,
+                    ',',
+                    '.'
+                );
+
+                $message = sprintf(
+                    "Olá, %s.%s%s"
+                        . "O serviço #%d foi finalizado.%s"
+                        . "Descrição: %s%s"
+                        . "Valor: R$ %s%s"
+                        . "Comissão: R$ %s%s"
+                        . "Data da finalização: %s",
+                    $service['user_name'],
+                    PHP_EOL,
+                    PHP_EOL,
+                    $serviceId,
+                    PHP_EOL,
+                    $service['description'],
+                    PHP_EOL,
+                    $formattedPrice,
+                    PHP_EOL,
+                    $formattedCommission,
+                    PHP_EOL,
+                    date('d/m/Y H:i')
+                );
+
+                $emailSent = $this->mailService->send(
+                    $service['user_email'],
+                    'Serviço finalizado',
+                    $message
+                );
+
                 $_SESSION['dashboard_success'] =
                     'Serviço finalizado com sucesso. Comissão: R$ '
-                    . number_format($commission, 2, ',', '.');
+                    . $formattedCommission;
+
+                /*
+             * O serviço permanece finalizado mesmo se o computador local
+             * não estiver configurado para entregar mensagens de e-mail.
+             */
+                if (!$emailSent) {
+                    $_SESSION['dashboard_success'] .=
+                        ' O e-mail não foi enviado neste ambiente por ser um teste técnico, mas a tentativa '
+                        . 'foi registrada para conferência.';
+                }
             }
         } catch (\Throwable $exception) {
             // O erro completo fica no log para não expor detalhes internos na tela.

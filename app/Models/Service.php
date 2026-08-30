@@ -48,22 +48,29 @@ final class Service
         return (int) $this->connection->lastInsertId();
     }
 
+    /**
+     * Busca um serviço e os dados do funcionário responsável.
+     */
     public function findById(int $serviceId): ?array
     {
         $sql = '
-            SELECT
-                id_service,
-                description,
-                price,
-                created_at,
-                update_at,
-                finished_at,
-                commission_user,
-                user_id_user
-            FROM `service`
-            WHERE id_service = :service_id
-            LIMIT 1
-        ';
+        SELECT
+            service.id_service,
+            service.description,
+            service.price,
+            service.created_at,
+            service.update_at,
+            service.finished_at,
+            service.commission_user,
+            service.user_id_user,
+            user.name AS user_name,
+            user.email AS user_email
+        FROM `service`
+        INNER JOIN `user`
+            ON user.id_user = service.user_id_user
+        WHERE service.id_service = :service_id
+        LIMIT 1
+    ';
 
         $statement = $this->connection->prepare($sql);
         $statement->execute([
@@ -72,10 +79,8 @@ final class Service
 
         $service = $statement->fetch();
 
-        // Retorna null quando o serviço solicitado não existir.
         return $service !== false ? $service : null;
     }
-
 
     // O método retorna todos os serviços cadastrados, com a possibilidade de aplicar filtros.
     /**
