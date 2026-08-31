@@ -36,7 +36,6 @@ $csrfToken = Csrf::token();
     <header class="topbar">
         <div class="topbar__content">
             <a class="brand" href="/dashboard">
-                <span class="brand__mark">JM</span>
                 <span>Controle de Serviços</span>
             </a>
         </div>

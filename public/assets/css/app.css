@@ -1296,3 +1296,136 @@ tbody tr:last-child td {
     stroke-linejoin: round;
     stroke-width: 2;
 }
+
+/* Mantém os cinco filtros na mesma linha em telas grandes. */
+.filter-panel .field {
+    min-width: 0;
+}
+
+@media (min-width: 1101px) {
+    .filter-panel .form-grid {
+        grid-template-columns:
+            minmax(180px, 1.25fr)
+            minmax(180px, 1.25fr)
+            minmax(140px, 0.9fr)
+            minmax(150px, 0.95fr)
+            minmax(150px, 0.95fr);
+    }
+}
+
+/* Em tablets, os filtros são distribuídos em duas colunas. */
+@media (min-width: 641px) and (max-width: 1100px) {
+    .filter-panel .form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* No celular, cada campo ocupa uma linha. */
+@media (max-width: 640px) {
+    .filter-panel .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.confirm-dialog {
+    width: min(460px, calc(100% - 32px));
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 18px;
+    color: var(--color-text);
+    background: #ffffff;
+    box-shadow: 0 24px 80px rgba(15, 13, 29, 0.3);
+}
+
+.confirm-dialog[open] {
+    animation: dialog-enter 0.2s ease-out;
+}
+
+.confirm-dialog::backdrop {
+    background: rgba(15, 13, 29, 0.68);
+    backdrop-filter: blur(3px);
+}
+
+.confirm-dialog__content {
+    padding: 30px;
+}
+
+.confirm-dialog__icon {
+    display: flex;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 20px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    color: var(--color-danger);
+    background: var(--color-danger-background);
+}
+
+.confirm-dialog__icon svg {
+    width: 25px;
+    height: 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.confirm-dialog__text h2 {
+    margin-bottom: 10px;
+    font-size: 1.45rem;
+}
+
+.confirm-dialog__text p {
+    margin: 0;
+    color: var(--color-muted);
+}
+
+.confirm-dialog__text strong {
+    color: var(--color-dark);
+}
+
+.confirm-dialog__warning {
+    margin-top: 8px !important;
+    font-size: 0.9rem;
+}
+
+.confirm-dialog__actions {
+    display: flex;
+    margin-top: 26px;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.confirm-dialog__actions .button {
+    min-width: 130px;
+}
+
+@keyframes dialog-enter {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 480px) {
+    .confirm-dialog__content {
+        padding: 24px 20px;
+    }
+
+    .confirm-dialog__actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .confirm-dialog__actions .button {
+        width: 100%;
+    }
+}

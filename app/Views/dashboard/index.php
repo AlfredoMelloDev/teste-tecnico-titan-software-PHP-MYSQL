@@ -702,7 +702,12 @@ $hasActiveFilters = array_filter($filters) !== [];
                                                         class="table-action-delete"
                                                         action="/services/delete"
                                                         method="post"
-                                                        data-confirm-delete>
+                                                        data-confirm-delete
+                                                        data-service-description="<?= htmlspecialchars(
+                                                                                        $service['description'],
+                                                                                        ENT_QUOTES,
+                                                                                        'UTF-8'
+                                                                                    ) ?>">
                                                         <input
                                                             type="hidden"
                                                             name="_token"
@@ -748,6 +753,55 @@ $hasActiveFilters = array_filter($filters) !== [];
             </div>
         </main>
     </div>
+    <dialog
+        class="confirm-dialog"
+        id="delete-dialog"
+        aria-labelledby="delete-dialog-title">
+        <div class="confirm-dialog__content">
+
+            <div class="confirm-dialog__text">
+                <h2 id="delete-dialog-title">
+                    Excluir serviço?
+                </h2>
+
+                <p>
+                    Você está prestes a excluir
+                    <strong id="delete-service-description">
+                        este serviço
+                    </strong>.
+                </p>
+
+                <p class="confirm-dialog__warning">
+                    Essa <strong>ação é permanente</strong> e não poderá ser desfeita.
+                </p>
+            </div>
+
+            <div class="confirm-dialog__actions">
+                <button
+                    class="button button--secondary"
+                    id="cancel-delete"
+                    type="button">
+                    Cancelar
+                </button>
+
+                <button
+                    class="button button--danger"
+                    id="confirm-delete"
+                    type="button">
+                    <svg
+                        class="action-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true">
+                        <path d="M4 7h16"></path>
+                        <path d="M9 7V4h6v3"></path>
+                        <path d="m6 7 1 13h10l1-13"></path>
+                    </svg>
+
+                    Sim, excluir
+                </button>
+            </div>
+        </div>
+    </dialog>
 </body>
 
 </html>
