@@ -1,65 +1,90 @@
 # Sistema de Controle de Serviços
 
-Sistema web desenvolvido em PHP orientado a objetos para gerenciamento de serviços prestados por funcionários.
+Sistema web para gerenciamento dos serviços prestados pelos funcionários da JM Informática.
 
-O projeto utiliza uma arquitetura MVC própria, acesso ao MySQL por meio de PDO e não depende de frameworks ou do Composer.
+A aplicação foi desenvolvida em PHP orientado a objetos, com arquitetura MVC própria, acesso ao MySQL por PDO e JavaScript puro. O projeto não utiliza frameworks, Composer ou gerenciadores externos de dependências.
 
-## Situação do projeto
-
-O sistema está em desenvolvimento. Atualmente, já permite autenticar usuários e gerenciar o cadastro e a consulta dos serviços.
-
-## Funcionalidades implementadas
+## Funcionalidades
 
 - Cadastro de usuários;
 - Autenticação por e-mail e senha;
-- Encerramento da sessão;
-- Proteção das páginas que exigem autenticação;
+- Controle de acesso por sessão;
+- Encerramento seguro da sessão;
+- Dashboard com informações do usuário autenticado;
+- Indicadores individuais de serviços, valores, pendências e finalizações;
 - Cadastro de serviços para o usuário autenticado;
-- Listagem dos serviços e seus respectivos responsáveis;
-- Identificação automática do status como pendente ou finalizado;
-- Exibição do valor total dos serviços do usuário;
-- Exibição dos últimos serviços pendentes;
+- Listagem dos serviços e seus responsáveis;
+- Edição de serviços pendentes;
+- Exclusão de serviços com confirmação;
+- Finalização de serviços;
+- Registro da data de finalização;
+- Cálculo automático da comissão;
+- Notificação por e-mail após a finalização;
 - Filtro por descrição do serviço;
 - Filtro por nome do usuário;
 - Filtro por status;
 - Filtro por período;
-- Edição de serviços pendentes;
-- Mensagens de sucesso e erro armazenadas na sessão;
-- Registro de erros da aplicação em arquivo de log.
+- Mensagens temporárias de sucesso e erro;
+- Proteção CSRF nos formulários;
+- Registro de erros e tentativas de e-mail;
+- Interface responsiva para computadores, tablets e celulares.
 
-## Funcionalidades em desenvolvimento
+## Regras de negócio
 
-- Exclusão de serviços;
-- Finalização de serviços;
-- Cálculo automático da comissão;
-- Envio de e-mail após a finalização;
-- Proteção dos formulários contra CSRF;
-- Identidade visual e responsividade das páginas;
-- Testes das principais regras de negócio.
+### Situação do serviço
 
-## Tecnologias utilizadas
+O status não é armazenado em um campo separado:
+
+- Sem data de finalização: `Pendente`;
+- Com data de finalização: `Finalizado`.
+
+Depois de finalizado, o serviço não pode mais ser editado pela aplicação.
+
+### Comissão
+
+A comissão é calculada no momento da finalização:
+
+| Valor do serviço | Comissão |
+|---|---:|
+| Até R$ 1.000,00 | 5% |
+| Acima de R$ 1.000,00 até R$ 10.000,00 | 10% |
+| Acima de R$ 10.000,00 | 20% |
+
+Exemplos:
+
+| Serviço | Percentual | Comissão |
+|---:|---:|---:|
+| R$ 800,00 | 5% | R$ 40,00 |
+| R$ 2.500,00 | 10% | R$ 250,00 |
+| R$ 12.000,00 | 20% | R$ 2.400,00 |
+
+### Indicadores do dashboard
+
+Os cards e a lista de pendências consideram os serviços do usuário autenticado. A tabela geral permite consultar os serviços de todos os funcionários.
+
+Os filtros da tabela não alteram os indicadores individuais.
+
+## Tecnologias
 
 - PHP 8;
 - MySQL;
 - PDO;
 - HTML5;
+- CSS3;
 - JavaScript;
 - Arquitetura MVC;
 - Servidor interno do PHP.
 
-## Regras de comissão
+## Restrições respeitadas
 
-Ao finalizar um serviço, a comissão deverá ser calculada de acordo com o seu valor:
+- Sem framework de backend;
+- Sem framework de frontend;
+- Sem Composer;
+- Sem ORM;
+- Consultas realizadas diretamente com PDO;
+- JavaScript sem bibliotecas externas.
 
-| Valor do serviço | Comissão |
-|---|---:|
-| Até R$ 1.000,00 | 5% |
-| Acima de R$ 1.000,00 | 10% |
-| Acima de R$ 10.000,00 | 20% |
-
-Um serviço é considerado pendente enquanto não possuir uma data de finalização.
-
-## Estrutura do projeto
+## Arquitetura
 
 ```text
 projeto/
@@ -74,35 +99,38 @@ projeto/
 ├── database/
 │   └── schema.sql
 ├── public/
+│   ├── assets/
+│   │   ├── css/
+│   │   └── js/
+│   └── index.php
 ├── storage/
 │   └── logs/
 ├── .gitignore
 └── README.md
 ```
 
-### Responsabilidades das pastas
+### Responsabilidades
 
-- `app/Controllers`: recebe as requisições e coordena as ações do sistema;
-- `app/Core`: contém os componentes centrais, como roteamento, autenticação e conexão com o banco;
-- `app/Models`: realiza as consultas e alterações no banco de dados;
-- `app/Services`: concentra regras de negócio que não pertencem aos Controllers;
-- `app/Views`: contém as páginas exibidas ao usuário;
-- `config`: guarda o modelo de configuração da conexão;
+- `app/Controllers`: recebe as requisições e coordena as operações;
+- `app/Core`: contém roteamento, autenticação, CSRF, autoload e conexão;
+- `app/Models`: executa consultas e alterações no banco;
+- `app/Services`: concentra regras como comissão e envio de e-mail;
+- `app/Views`: contém as páginas apresentadas ao usuário;
+- `config`: contém o modelo de configuração do banco;
 - `database`: contém o script de criação das tabelas;
-- `public`: ponto de entrada público da aplicação;
-- `storage/logs`: armazena os registros de erro.
+- `public`: ponto de entrada e arquivos públicos;
+- `storage/logs`: armazena registros locais da aplicação.
 
 ## Requisitos
 
-Antes de iniciar, verifique se estão instalados:
-
 - PHP 8 ou superior;
 - MySQL;
-- Extensão `PDO`;
-- Extensão `pdo_mysql`;
-- Git.
+- Git;
+- Extensão PHP `PDO`;
+- Extensão PHP `pdo_mysql`;
+- Extensão PHP `session`.
 
-Para conferir as extensões disponíveis:
+Para conferir as extensões:
 
 ```powershell
 php -m
@@ -117,35 +145,60 @@ git clone https://github.com/AlfredoMelloDev/teste-tecnico-titan-software-PHP-MY
 cd teste-tecnico-titan-software-PHP-MYSQL
 ```
 
-### 2. Criar o banco de dados
+### 2. Criar o banco
 
-Acesse o MySQL:
+Entre no MySQL com um usuário autorizado:
 
 ```powershell
 mysql -h 127.0.0.1 -P 3306 -u seu_usuario -p
 ```
 
-No monitor do MySQL, execute:
+Quando aparecer `mysql>`, execute:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS laravel_test
+CREATE DATABASE IF NOT EXISTS teste_titan
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
+
+USE teste_titan;
 ```
 
-Em seguida, importe o arquivo `database/schema.sql`. O script cria as tabelas `user` e `service`, incluindo seus índices e o relacionamento entre elas.
+### 3. Importar as tabelas
 
-Também é possível abrir o arquivo no SQLTools e executar o script utilizando uma conexão MySQL autorizada a acessar o banco.
+Ainda no monitor do MySQL, utilize o caminho absoluto do projeto:
 
-### 3. Configurar a conexão
-
-Crie o arquivo:
-
-```text
-config/database.php
+```sql
+SOURCE C:/caminho/do/projeto/database/schema.sql;
 ```
 
-Use `config/database.example.php` como modelo:
+No Windows, utilize barras `/` no comando `SOURCE`.
+
+Também é possível abrir `database/schema.sql` no SQLTools, selecionar o banco `teste_titan` e executar o arquivo.
+
+O script cria:
+
+- Tabela `user`;
+- Tabela `service`;
+- Chave estrangeira entre serviço e usuário;
+- Índices utilizados nas consultas.
+
+### 4. Configurar a conexão
+
+Crie uma cópia do arquivo de exemplo.
+
+No PowerShell:
+
+```powershell
+Copy-Item config/database.example.php config/database.php
+```
+
+No Linux ou macOS:
+
+```bash
+cp config/database.example.php config/database.php
+```
+
+Edite `config/database.php`:
 
 ```php
 <?php
@@ -155,67 +208,119 @@ declare(strict_types=1);
 return [
     'host' => '127.0.0.1',
     'port' => '3306',
-    'database' => 'laravel_test',
+    'database' => 'teste_titan',
     'charset' => 'utf8mb4',
     'username' => 'seu_usuario',
     'password' => 'sua_senha',
 ];
 ```
 
-O arquivo `config/database.php` não é enviado ao repositório, evitando a publicação das credenciais locais.
+O arquivo `config/database.php` está no `.gitignore` e não deve ser enviado ao repositório.
 
-### 4. Iniciar a aplicação
+### 5. Iniciar a aplicação
 
-Na pasta principal do projeto, execute:
+Na raiz do projeto:
 
 ```powershell
 php -S 127.0.0.1:8000 -t public public/index.php
 ```
 
-Depois, acesse:
+Acesse:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Mantenha esse terminal aberto enquanto estiver utilizando o sistema.
+Mantenha o terminal aberto enquanto estiver utilizando o sistema.
+
+### 6. Criar o primeiro usuário
+
+Na página de login:
+
+1. Clique em **Cadastrar usuário**;
+2. Informe nome, e-mail e senha;
+3. Conclua o cadastro;
+4. Entre com as credenciais criadas.
+
+O projeto não fornece senhas ou usuários fixos.
 
 ## Verificação da conexão
 
-Para testar a conexão PDO separadamente, execute na pasta principal:
+Na raiz do projeto:
 
 ```powershell
 php -r "require 'app/Core/Database.php'; App\Core\Database::connection(); echo 'Conexao PDO realizada com sucesso.' . PHP_EOL;"
 ```
 
-## Verificação da sintaxe
+Resultado esperado:
 
-A sintaxe de um arquivo PHP pode ser verificada com:
-
-```powershell
-php -l caminho/do/arquivo.php
+```text
+Conexao PDO realizada com sucesso.
 ```
 
-Exemplo:
+## Verificação da sintaxe
+
+Para verificar um arquivo:
 
 ```powershell
 php -l public/index.php
 ```
 
+Para verificar todos os arquivos PHP no PowerShell:
+
+```powershell
+Get-ChildItem -Recurse -Filter *.php | ForEach-Object {
+    php -l $_.FullName
+}
+```
+
+## Envio de e-mail
+
+A aplicação tenta enviar uma notificação quando um serviço é finalizado.
+
+O envio usa a função nativa `mail()` do PHP e depende da configuração de e-mail do servidor. Em ambientes locais sem essa configuração, o serviço é finalizado normalmente e a tentativa fica registrada em:
+
+```text
+storage/logs/mail.log
+```
+
+Para consultar no Windows PowerShell:
+
+```powershell
+Get-Content .\storage\logs\mail.log -Tail 20 -Encoding UTF8
+```
+
+Em um ambiente de produção, o servidor deve possuir um transporte de e-mail configurado.
+
 ## Segurança
 
 O projeto utiliza:
 
-- Senhas protegidas com `password_hash`;
-- Validação das senhas com `password_verify`;
-- Consultas preparadas pelo PDO;
-- Renovação do identificador da sessão após o login;
-- Escape do conteúdo exibido nas páginas;
-- Arquivo local de credenciais ignorado pelo Git.
+- `password_hash()` para armazenar senhas;
+- `password_verify()` durante a autenticação;
+- Renovação do identificador após o login;
+- Consultas preparadas com PDO;
+- Emulação de prepared statements desabilitada;
+- Tokens CSRF nas requisições `POST`;
+- Escape de conteúdo com `htmlspecialchars`;
+- Validação dos dados recebidos;
+- Controle de acesso às páginas autenticadas;
+- Credenciais locais ignoradas pelo Git;
+- Mensagens de erro técnico registradas fora da interface.
+
+## Logs
+
+Os registros locais ficam em:
+
+```text
+storage/logs/
+```
+
+Os arquivos gerados não são enviados ao Git. Apenas `.gitkeep` preserva a pasta no repositório.
 
 ## Banco de dados
 
-O script de criação das tabelas está disponível em:
+O script solicitado para criação das tabelas está disponível em:
 
 ```text
 database/schema.sql
@@ -223,8 +328,8 @@ database/schema.sql
 
 As tabelas principais são:
 
-- `user`: armazena os usuários do sistema;
-- `service`: armazena os serviços e relaciona cada registro ao usuário responsável.
+- `user`: usuários e credenciais do sistema;
+- `service`: serviços, valores, finalização, comissão e responsável.
 
 ## Autor
 
