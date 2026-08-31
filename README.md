@@ -200,6 +200,139 @@ Abra o painel do programa e inicie o módulo **MySQL**.
 
 #### Qual usuário devo utilizar?
 
+O usuário solicitado nesta etapa é uma conta do **MySQL**. Ele não é o usuário do Windows, do GitHub ou do sistema desenvolvido.
+
+Na maioria das instalações locais, o usuário administrativo padrão é:
+
+```text
+root
+```
+
+A senha é aquela definida durante a instalação do MySQL. Se nenhuma senha tiver sido configurada, pressione `Enter` quando ela for solicitada.
+
+Se você já utiliza MySQL Workbench, SQLTools, XAMPP, WampServer ou outro gerenciador, consulte as configurações da conexão existente para identificar o usuário e a porta utilizados.
+
+> O usuário escolhido precisa ter permissão para criar bancos e tabelas. Caso contrário, a importação apresentará a mensagem `Access denied`.
+
+No VS Code, abra um novo terminal e execute o seguinte comando para entrar com o usuário padrão `root`:
+
+```powershell
+mysql -h 127.0.0.1 -P 3306 -u root -p
+```
+
+Se você utiliza outro usuário administrativo, substitua `root` pelo nome correspondente.
+
+Significado das opções:
+
+- `-h 127.0.0.1`: endereço do servidor MySQL local;
+- `-P 3306`: porta padrão do MySQL;
+- `-u root`: usuário utilizado na conexão;
+- `-p`: solicita a senha de forma segura.
+
+Após executar o comando, aparecerá:
+
+```text
+Enter password:
+```
+
+Digite a senha do MySQL e pressione `Enter`. Por segurança, nenhum caractere será exibido durante a digitação.
+
+Se o usuário não possuir senha, apenas pressione `Enter`.
+
+Quando a conexão for realizada corretamente, o terminal mostrará:
+
+```text
+mysql>
+```
+
+#### Importar o script
+
+Com o terminal exibindo `mysql>` e no arquivo database.example.php os campos username(root) e password(\*campo vazio) ajustados, execute o arquivo `database/schema.sql` através do caminho completo da pasta em que o projeto foi salvo:
+
+```sql
+SOURCE C:/caminho/completo/do/projeto/database/schema.sql
+```
+
+Exemplo no Windows:
+
+```sql
+SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql
+```
+
+Substitua o caminho do exemplo pelo local em que o projeto foi salvo em sua máquina.
+
+Caso não saiba o caminho completo do arquivo, abra outro terminal do PowerShell na raiz do projeto e execute:
+
+```powershell
+Resolve-Path .\database\schema.sql
+```
+
+O PowerShell apresentará o caminho completo. Copie esse caminho e substitua as barras `\` por `/` antes de utilizá-lo no comando `SOURCE`.
+
+No comando `SOURCE`:
+
+- utilize o caminho completo até o arquivo `schema.sql`;
+- utilize barras `/`, mesmo no Windows;
+- não coloque ponto e vírgula no final;
+- mantenha o primeiro terminal do MySQL aberto durante a importação.
+
+O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, os índices e os relacionamentos necessários.
+
+Para confirmar que a importação foi concluída, execute:
+
+```sql
+USE teste_titan;
+SHOW TABLES;
+```
+
+O resultado deverá apresentar estas tabelas:
+
+```text
+service
+user
+```
+
+Para sair do MySQL, execute:
+
+```sql
+EXIT;
+```
+
+#### Possíveis erros durante a importação
+
+Se aparecer a mensagem `Failed to open file`, verifique se:
+
+- o caminho informado corresponde à pasta em que o projeto foi salvo;
+- o arquivo `database/schema.sql` existe;
+- o caminho contém todas as pastas necessárias;
+- as barras foram escritas como `/`;
+- não foi colocado `;` no final do comando `SOURCE`.
+
+Se aparecer a mensagem `Access denied`, o usuário utilizado não possui permissão para criar ou acessar o banco.
+
+Nesse caso, saia do MySQL:
+
+```sql
+EXIT;
+```
+
+Depois, conecte-se novamente utilizando o usuário `root` ou outra conta administrativa:
+
+```powershell
+mysql -h 127.0.0.1 -P 3306 -u root -p
+```
+
+Se aparecer uma mensagem informando que não foi possível conectar ao servidor MySQL, confirme que o servidor foi iniciado conforme explicado na etapa anterior.
+
+Se o comando `mysql` não for reconhecido no PowerShell, verifique se o MySQL está instalado e se sua pasta `bin` está configurada na variável de ambiente `PATH`.
+
+Como alternativa, abra o arquivo `database/schema.sql` no SQLTools ou no MySQL Workbench e execute-o utilizando uma conexão com permissão para criar bancos.
+
+> As credenciais do arquivo `config/database.php` serão configuradas na próxima etapa. Esse arquivo não interfere na execução do comando `SOURCE`.
+
+
+#### Qual usuário devo utilizar?
+
 O usuário solicitado nesta etapa é uma conta do **MySQL**. Ele não é o usuário do Windows, GitHub ou do sistema desenvolvido.
 
 Na maioria das instalações locais, o usuário administrativo padrão é:
