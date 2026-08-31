@@ -214,9 +214,10 @@ Se você já utiliza MySQL Workbench, SQLTools, XAMPP ou outro gerenciador, pode
 
 O usuário utilizado precisa ter permissão para criar bancos e tabelas.
 
-Para entrar com o usuário padrão `root`, execute em um novo terminal:
 
-```powershell
+No VSCode, para entrar com o usuário padrão `root`, execute em um novo terminal:
+
+```VSCODE
 mysql -h 127.0.0.1 -P 3306 -u root -p
 ```
 
@@ -245,43 +246,67 @@ mysql>
 
 #### Importar o script
 
-No monitor do MySQL, quando estiver aparecendo `mysql>`, execute o script utilizando o caminho absoluto do projeto:
+Depois de acessar o MySQL com o usuário `root` ou outra conta com permissão para criar bancos, o terminal deverá exibir:
+
+```text
+mysql>
+```
+
+Execute o arquivo `database/schema.sql` utilizando o caminho completo da pasta em que o projeto foi salvo:
 
 ```sql
-SOURCE C:/caminho/do/projeto/database/schema.sql;
+SOURCE C:/caminho/completo/do/projeto/database/schema.sql
 ```
 
 Exemplo no Windows:
 
 ```sql
-SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql;
+SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql
 ```
 
-No comando `SOURCE`, utilize barras `/`, mesmo no Windows.
+> Substitua o caminho do exemplo pelo local em que o projeto foi salvo em sua máquina.
 
-O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, índices e relacionamentos necessários.
+No comando `SOURCE`:
 
-Para confirmar a importação, execute:
+- utilize barras `/`, mesmo no Windows;
+- não coloque ponto e vírgula no final do caminho;
+- utilize uma conta do MySQL com permissão para criar bancos, como `root`.
+
+O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, os índices e os relacionamentos necessários.
+
+Para confirmar que a importação foi concluída, execute:
 
 ```sql
 USE teste_titan;
 SHOW TABLES;
 ```
 
-O resultado deve apresentar as tabelas:
+O resultado deverá apresentar estas tabelas:
 
 ```text
 service
 user
 ```
 
-Para sair do MySQL:
+Para sair do MySQL, execute:
 
 ```sql
 EXIT;
 ```
 
-> Se o comando `mysql` não for reconhecido, verifique se o MySQL está instalado e se sua pasta `bin` está configurada no PATH. Como alternativa, abra `database/schema.sql` no SQLTools e execute o arquivo utilizando uma conexão com permissão para criar bancos.
+Se aparecer a mensagem `Failed to open file`, confira se:
+
+- o caminho informado corresponde à pasta em que o projeto foi salvo;
+- o arquivo `database/schema.sql` existe;
+- não foi colocado `;` no final do comando `SOURCE`.
+
+Se aparecer `Access denied`, o usuário utilizado não possui permissão para criar ou acessar o banco. Saia do MySQL com `EXIT;` e conecte-se novamente utilizando o usuário `root` ou outra conta administrativa:
+
+```powershell
+mysql -h 127.0.0.1 -P 3306 -u root -p
+```
+
+Se o comando `mysql` não for reconhecido no PowerShell, verifique se o MySQL está instalado e se sua pasta `bin` está configurada no `PATH`. Como alternativa, abra o arquivo `database/schema.sql` no SQLTools ou no MySQL Workbench e execute-o utilizando uma conexão com permissão para criar bancos.
 
 ### 4. Configurar a conexão
 
@@ -327,25 +352,46 @@ O arquivo `config/database.php` está no `.gitignore` e não deve ser enviado ao
 
 ### 5. Verificar a conexão
 
+Antes de executar o teste, confirme que o arquivo `config/database.php` contém as credenciais do MySQL instalado em sua máquina.
+
+> A aplicação utiliza o arquivo `config/database.php`. O arquivo `config/database.example.php` serve apenas como modelo e não é carregado pelo sistema.
+
 Na raiz do projeto, execute:
 
 ```powershell
 php -r "require 'app/Core/Database.php'; App\Core\Database::connection(); echo 'Conexao PDO realizada com sucesso.' . PHP_EOL;"
 ```
 
-Resultado esperado:
+O resultado esperado é:
 
 ```text
 Conexao PDO realizada com sucesso.
 ```
 
-Se ocorrer algum erro, confira:
+Se ocorrer algum erro, verifique:
 
-- Se o servidor MySQL está em execução;
-- Se o banco `teste_titan` foi criado;
-- Se usuário e senha estão corretos;
-- Se o usuário possui acesso ao banco;
-- Se a extensão `pdo_mysql` está habilitada.
+- se o servidor MySQL está em execução;
+- se o banco `teste_titan` foi criado;
+- se o arquivo `config/database.php` existe;
+- se o nome do banco está definido como `teste_titan`;
+- se o usuário e a senha informados estão corretos;
+- se o usuário possui permissão para acessar o banco;
+- se a extensão `pdo_mysql` está habilitada no PHP.
+
+O erro `Access denied` indica que o usuário ou a senha estão incorretos, ou que o usuário informado não possui acesso ao banco. Nesse caso, abra `config/database.php` e informe as mesmas credenciais utilizadas para acessar o MySQL durante a importação.
+
+Para verificar se a extensão `pdo_mysql` está habilitada, execute:
+
+```powershell
+php -m | Select-String "pdo_mysql"
+```
+
+Se estiver habilitada, o terminal exibirá:
+
+```text
+pdo_mysql
+```
+```
 
 ### 6. Iniciar a aplicação
 
