@@ -74,8 +74,11 @@ final class DashboardController extends Controller
         // A listagem geral considera os filtros informados pelo usuário.
         $services = $this->services->findAllWithUser($filters);
 
-        // Os indicadores continuam relacionados ao usuário autenticado.
+        // Os indicadores não são afetados pelos filtros aplicados à tabela.
+        $summary = $this->services->summaryByUser($userId);
+
         $totalValue = $this->services->totalValueByUser($userId);
+
         $pendingServices = $this->services
             ->findLatestPendingByUser($userId);
 
@@ -89,6 +92,7 @@ final class DashboardController extends Controller
             'totalValue' => $totalValue,
             'pendingServices' => $pendingServices,
             'filters' => $filters,
+            'summary' => $summary,
         ]);
     }
 

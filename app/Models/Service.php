@@ -297,4 +297,44 @@ final class Service
         // Nenhuma linha alterada também indica que o serviço já estava finalizado.
         return $statement->rowCount() > 0;
     }
+
+    /**
+     * Retorna os principais números do usuário para o dashboard.
+     */
+    public function summaryByUser(int $userId): array
+    {
+        $sql = '
+        SELECT
+            COUNT(*) AS total_services,
+            SUM(
+                CASE
+                    WHEN finished_at IS NULL THEN 1
+                    ELSE 0
+                END
+            ) AS pending_services,
+            SUM(
+                CASE
+                    WHEN finished_at IS NOT NULL THEN 1
+                    ELSE 0
+                END
+            ) AS finished_services,
+            COALESCE(SUM(price), 0) AS total_value
+        FROM `service`
+        WHERE user_id_user = :user_id
+    ';
+
+        $statement = $this->connection->prepare($sql);
+        $statement->execute([
+            'user_id' => $userId,
+        ]);
+
+        $summary = $statement->fetch();
+
+        return [
+            'total_services' => (int) ($summary['total_services'] ?? 0),
+            'pending_services' => (int) ($summary['pending_services'] ?? 0),
+            'finished_services' => (int) ($summary['finished_services'] ?? 0),
+            'total_value' => (float) ($summary['total_value'] ?? 0),
+        ];
+    }
 }

@@ -83,7 +83,7 @@ final class UserController extends Controller
         );
 
         $_SESSION['login_success'] =
-            'Usuário cadastrado. Agora você já pode entrar.';
+            'Usuário cadastrado. Faça login para acessar o sistema.';
 
         header('Location: /login');
         exit;

@@ -10,8 +10,9 @@ use App\Core\Csrf;
  * @var array<string, string> $old
  */
 
-// O token CSRF é incluído em todos os formulários que alteram dados.
+// O token acompanha o formulário para validar a origem do cadastro.
 $csrfToken = Csrf::token();
+
 ?>
 
 <!DOCTYPE html>
@@ -19,67 +20,125 @@ $csrfToken = Csrf::token();
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
+    <title>
+        <?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>
+    </title>
+
+    <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 
 <body>
-    <main>
-        <h1>Cadastrar Novo Serviço</h1>
+    <header class="topbar">
+        <div class="topbar__content">
+            <a class="brand" href="/dashboard">
+                <span class="brand__mark">JM</span>
+                <span>Controle de Serviços</span>
+            </a>
+        </div>
+    </header>
 
-        <?php if ($error !== null): ?>
-            <p role="alert">
-                <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
-            </p>
-        <?php endif; ?>
+    <main class="form-page">
+        <a class="back-link" href="/dashboard">
+            ← Voltar para o dashboard
+        </a>
 
-        <form action="/services" method="post">
+        <section class="form-card">
+            <div class="form-card__header">
+                <h1>Cadastrar novo serviço</h1>
 
-            // Token CSRF
-            <input
-                type="hidden"
-                name="_token"
-                value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
-            <div>
-                
-                <label for="description">Descrição</label>
-                <input
-                    type="text"
-                    id="description"
-                    name="description"
-                    maxlength="255"
-                    value="<?= htmlspecialchars(
-                                $old['description'] ?? '',
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>"
-                    required>
+                <p>
+                    Informe a descrição e o valor do serviço prestado.
+                </p>
             </div>
 
-            <div>
-                <label for="price">Valor</label>
+            <?php if ($error !== null): ?>
+                <p class="alert alert--error" role="alert">
+                    <?= htmlspecialchars(
+                        $error,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>
+                </p>
+            <?php endif; ?>
 
-                <!-- O campo aceita vírgula ou ponto como separador decimal. -->
+            <form action="/services" method="post">
                 <input
-                    type="text"
-                    id="price"
-                    name="price"
-                    maxlength="12"
-                    inputmode="decimal"
-                    placeholder="Ex.: 250,00"
+                    type="hidden"
+                    name="_token"
                     value="<?= htmlspecialchars(
-                                $old['price'] ?? '',
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ) ?>"
-                    required>
-            </div>
+                        $csrfToken,
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ) ?>"
+                >
 
-            <button type="submit">Cadastrar</button>
-        </form>
+                <div class="field">
+                    <label for="description">
+                        Descrição do serviço
+                    </label>
 
-        <a href="/dashboard">Voltar para o dashboard</a>
+                    <input
+                        id="description"
+                        name="description"
+                        type="text"
+                        maxlength="255"
+                        value="<?= htmlspecialchars(
+                            $old['description'] ?? '',
+                            ENT_QUOTES,
+                            'UTF-8'
+                        ) ?>"
+                        autocomplete="off"
+                        required
+                        autofocus
+                    >
+
+                    <p class="help-text">
+                        Descreva de forma objetiva o serviço realizado.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label for="price">Valor</label>
+
+                    <!-- O campo aceita vírgula ou ponto como separador decimal. -->
+                    <input
+                        id="price"
+                        name="price"
+                        type="text"
+                        maxlength="12"
+                        inputmode="decimal"
+                        placeholder="Ex.: 250,00"
+                        value="<?= htmlspecialchars(
+                            $old['price'] ?? '',
+                            ENT_QUOTES,
+                            'UTF-8'
+                        ) ?>"
+                        required
+                    >
+                </div>
+
+                <div class="form-actions">
+                    <button
+                        class="button button--primary"
+                        type="submit"
+                    >
+                        Cadastrar serviço
+                    </button>
+
+                    <a
+                        class="button button--secondary"
+                        href="/dashboard"
+                    >
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+        </section>
     </main>
 </body>
 
