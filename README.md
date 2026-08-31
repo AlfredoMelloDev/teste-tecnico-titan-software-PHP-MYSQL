@@ -10,6 +10,10 @@ O dashboard reúne os indicadores do usuário autenticado, os últimos serviços
 
 ![Dashboard do Sistema de Controle de Serviços](docs/images/dashboard.png)
 
+A área de gerenciamento permite pesquisar serviços por descrição, usuário, status e período, além de editar, finalizar ou excluir os registros.
+
+![Filtros e gerenciamento dos serviços](docs/images/dashboard-filtros-servicos.png)
+
 ## Funcionalidades implementadas
 
 - Cadastro de usuários;
