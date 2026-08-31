@@ -1,5 +1,9 @@
--- Banco utilizado no ambiente local de desenvolvimento.
-USE laravel_test;
+-- Banco de dados usado para armazenar os serviços cadastrados e os funcionários que podem acessar o sistema.
+CREATE DATABASE IF NOT EXISTS teste_titan
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE teste_titan;
 
 -- Armazena os funcionários que poderão acessar o sistema.
 CREATE TABLE IF NOT EXISTS `user` (

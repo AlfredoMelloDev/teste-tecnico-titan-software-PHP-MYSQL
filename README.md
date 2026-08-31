@@ -1,17 +1,23 @@
 # Sistema de Controle de Serviços
 
-Sistema web para gerenciamento dos serviços prestados pelos funcionários da JM Informática.
+Sistema web desenvolvido para gerenciar os serviços prestados pelos funcionários da JM Informática.
 
-A aplicação foi desenvolvida em PHP orientado a objetos, com arquitetura MVC própria, acesso ao MySQL por PDO e JavaScript puro. O projeto não utiliza frameworks, Composer ou gerenciadores externos de dependências.
+A aplicação utiliza PHP orientado a objetos, arquitetura MVC própria, MySQL com PDO e JavaScript puro. O projeto não utiliza frameworks, Composer ou gerenciadores externos de dependências.
 
-## Funcionalidades
+## Visão do sistema
+
+O dashboard reúne os indicadores do usuário autenticado, os últimos serviços pendentes e o gerenciamento dos registros.
+
+![Dashboard do Sistema de Controle de Serviços](docs/images/dashboard.png)
+
+## Funcionalidades implementadas
 
 - Cadastro de usuários;
 - Autenticação por e-mail e senha;
 - Controle de acesso por sessão;
 - Encerramento seguro da sessão;
 - Dashboard com informações do usuário autenticado;
-- Indicadores individuais de serviços, valores, pendências e finalizações;
+- Indicadores individuais de valores, serviços pendentes e finalizados;
 - Cadastro de serviços para o usuário autenticado;
 - Listagem dos serviços e seus responsáveis;
 - Edição de serviços pendentes;
@@ -26,14 +32,14 @@ A aplicação foi desenvolvida em PHP orientado a objetos, com arquitetura MVC p
 - Filtro por período;
 - Mensagens temporárias de sucesso e erro;
 - Proteção CSRF nos formulários;
-- Registro de erros e tentativas de e-mail;
+- Registro local de erros e tentativas de e-mail;
 - Interface responsiva para computadores, tablets e celulares.
 
 ## Regras de negócio
 
-### Situação do serviço
+### Status do serviço
 
-O status não é armazenado em um campo separado:
+O status é definido pela data de finalização:
 
 - Sem data de finalização: `Pendente`;
 - Com data de finalização: `Finalizado`.
@@ -60,11 +66,11 @@ Exemplos:
 
 ### Indicadores do dashboard
 
-Os cards e a lista de pendências consideram os serviços do usuário autenticado. A tabela geral permite consultar os serviços de todos os funcionários.
+Os cards e a lista de pendências consideram somente os serviços do usuário autenticado.
 
-Os filtros da tabela não alteram os indicadores individuais.
+A tabela geral apresenta os serviços de todos os funcionários. Os filtros aplicados à tabela não alteram os indicadores individuais.
 
-## Tecnologias
+## Tecnologias utilizadas
 
 - PHP 8;
 - MySQL;
@@ -84,7 +90,7 @@ Os filtros da tabela não alteram os indicadores individuais.
 - Consultas realizadas diretamente com PDO;
 - JavaScript sem bibliotecas externas.
 
-## Arquitetura
+## Estrutura do projeto
 
 ```text
 projeto/
@@ -98,6 +104,8 @@ projeto/
 │   └── database.example.php
 ├── database/
 │   └── schema.sql
+├── docs/
+│   └── images/
 ├── public/
 │   ├── assets/
 │   │   ├── css/
@@ -118,10 +126,13 @@ projeto/
 - `app/Views`: contém as páginas apresentadas ao usuário;
 - `config`: contém o modelo de configuração do banco;
 - `database`: contém o script de criação das tabelas;
+- `docs/images`: armazena as imagens utilizadas na documentação;
 - `public`: ponto de entrada e arquivos públicos;
-- `storage/logs`: armazena registros locais da aplicação.
+- `storage/logs`: armazena os registros locais da aplicação.
 
 ## Requisitos
+
+Antes de iniciar, verifique se estão instalados:
 
 - PHP 8 ou superior;
 - MySQL;
@@ -145,44 +156,27 @@ git clone https://github.com/AlfredoMelloDev/teste-tecnico-titan-software-PHP-MY
 cd teste-tecnico-titan-software-PHP-MYSQL
 ```
 
-### 2. Criar o banco
+### 2. Criar e importar o banco de dados
 
-Entre no MySQL com um usuário autorizado:
+Entre no MySQL com um usuário que possua permissão para criar bancos:
 
 ```powershell
 mysql -h 127.0.0.1 -P 3306 -u seu_usuario -p
 ```
 
-Quando aparecer `mysql>`, execute:
-
-```sql
-CREATE DATABASE IF NOT EXISTS teste_titan
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-
-USE teste_titan;
-```
-
-### 3. Importar as tabelas
-
-Ainda no monitor do MySQL, utilize o caminho absoluto do projeto:
+Quando aparecer `mysql>`, execute o arquivo utilizando o caminho absoluto do projeto:
 
 ```sql
 SOURCE C:/caminho/do/projeto/database/schema.sql;
 ```
 
-No Windows, utilize barras `/` no comando `SOURCE`.
+No Windows, utilize barras `/` no caminho.
 
-Também é possível abrir `database/schema.sql` no SQLTools, selecionar o banco `teste_titan` e executar o arquivo.
+O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, índices e relacionamentos necessários.
 
-O script cria:
+Também é possível abrir `database/schema.sql` no SQLTools e executar o arquivo utilizando uma conexão MySQL autorizada.
 
-- Tabela `user`;
-- Tabela `service`;
-- Chave estrangeira entre serviço e usuário;
-- Índices utilizados nas consultas.
-
-### 4. Configurar a conexão
+### 3. Configurar a conexão
 
 Crie uma cópia do arquivo de exemplo.
 
@@ -198,7 +192,7 @@ No Linux ou macOS:
 cp config/database.example.php config/database.php
 ```
 
-Edite `config/database.php`:
+Edite `config/database.php` com as credenciais da sua máquina:
 
 ```php
 <?php
@@ -217,9 +211,9 @@ return [
 
 O arquivo `config/database.php` está no `.gitignore` e não deve ser enviado ao repositório.
 
-### 5. Iniciar a aplicação
+### 4. Iniciar a aplicação
 
-Na raiz do projeto:
+Na raiz do projeto, execute:
 
 ```powershell
 php -S 127.0.0.1:8000 -t public public/index.php
@@ -233,7 +227,7 @@ http://127.0.0.1:8000
 
 Mantenha o terminal aberto enquanto estiver utilizando o sistema.
 
-### 6. Criar o primeiro usuário
+### 5. Criar o primeiro usuário
 
 Na página de login:
 
@@ -276,29 +270,29 @@ Get-ChildItem -Recurse -Filter *.php | ForEach-Object {
 
 ## Envio de e-mail
 
-A aplicação tenta enviar uma notificação quando um serviço é finalizado.
+Quando um serviço é finalizado, a aplicação tenta enviar uma notificação ao usuário responsável.
 
-O envio usa a função nativa `mail()` do PHP e depende da configuração de e-mail do servidor. Em ambientes locais sem essa configuração, o serviço é finalizado normalmente e a tentativa fica registrada em:
+O envio utiliza a função nativa `mail()` do PHP e depende da configuração de e-mail do servidor. Em ambientes locais sem essa configuração, o serviço é finalizado normalmente e a tentativa fica registrada em:
 
 ```text
 storage/logs/mail.log
 ```
 
-Para consultar no Windows PowerShell:
+Para consultar o arquivo no Windows PowerShell:
 
 ```powershell
 Get-Content .\storage\logs\mail.log -Tail 20 -Encoding UTF8
 ```
 
-Em um ambiente de produção, o servidor deve possuir um transporte de e-mail configurado.
+Em produção, o servidor deve possuir um transporte de e-mail configurado.
 
 ## Segurança
 
 O projeto utiliza:
 
-- `password_hash()` para armazenar senhas;
+- `password_hash()` para armazenamento das senhas;
 - `password_verify()` durante a autenticação;
-- Renovação do identificador após o login;
+- Renovação do identificador da sessão após o login;
 - Consultas preparadas com PDO;
 - Emulação de prepared statements desabilitada;
 - Tokens CSRF nas requisições `POST`;
@@ -306,17 +300,7 @@ O projeto utiliza:
 - Validação dos dados recebidos;
 - Controle de acesso às páginas autenticadas;
 - Credenciais locais ignoradas pelo Git;
-- Mensagens de erro técnico registradas fora da interface.
-
-## Logs
-
-Os registros locais ficam em:
-
-```text
-storage/logs/
-```
-
-Os arquivos gerados não são enviados ao Git. Apenas `.gitkeep` preserva a pasta no repositório.
+- Erros técnicos registrados fora da interface.
 
 ## Banco de dados
 
@@ -328,8 +312,8 @@ database/schema.sql
 
 As tabelas principais são:
 
-- `user`: usuários e credenciais do sistema;
-- `service`: serviços, valores, finalização, comissão e responsável.
+- `user`: armazena usuários e credenciais;
+- `service`: armazena serviços, valores, finalização, comissão e responsável.
 
 ## Autor
 
