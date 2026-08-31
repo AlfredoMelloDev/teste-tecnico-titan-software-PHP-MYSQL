@@ -21,7 +21,7 @@ O dashboard reúne os indicadores do usuário autenticado, os últimos serviços
 - Cadastro de serviços para o usuário autenticado;
 - Listagem dos serviços e seus responsáveis;
 - Edição de serviços pendentes;
-- Exclusão de serviços com confirmação;
+- Exclusão de serviços com confirmação personalizada;
 - Finalização de serviços;
 - Registro da data de finalização;
 - Cálculo automático da comissão;
@@ -141,7 +141,7 @@ Antes de iniciar, verifique se estão instalados:
 - Extensão PHP `pdo_mysql`;
 - Extensão PHP `session`.
 
-Para conferir as extensões:
+Para conferir as extensões disponíveis:
 
 ```powershell
 php -m
@@ -156,27 +156,134 @@ git clone https://github.com/AlfredoMelloDev/teste-tecnico-titan-software-PHP-MY
 cd teste-tecnico-titan-software-PHP-MYSQL
 ```
 
-### 2. Criar e importar o banco de dados
+### 2. Iniciar o servidor MySQL
 
-Entre no MySQL com um usuário que possua permissão para criar bancos:
+Antes de criar o banco de dados, certifique-se de que o MySQL esteja instalado e em execução.
+
+A forma de inicialização depende de como ele foi instalado.
+
+#### Instalação pelo Scoop ou versão portátil
+
+Abra um PowerShell separado e execute:
 
 ```powershell
-mysql -h 127.0.0.1 -P 3306 -u seu_usuario -p
+mysqld --console
 ```
 
-Quando aparecer `mysql>`, execute o arquivo utilizando o caminho absoluto do projeto:
+Aguarde até aparecer:
+
+```text
+ready for connections
+```
+
+Mantenha esse terminal aberto enquanto estiver utilizando o banco de dados. Abra outro terminal para executar as próximas etapas.
+
+#### MySQL instalado como serviço do Windows
+
+Pressione `Win + R`, digite:
+
+```text
+services.msc
+```
+
+Procure por um serviço com nome semelhante a `MySQL`, `MySQL80` ou `MySQL90`.
+
+Se estiver parado, clique com o botão direito e selecione **Iniciar**.
+
+#### XAMPP ou WampServer
+
+Abra o painel do programa e inicie o módulo **MySQL**.
+
+> Se aparecer `ERROR 2003 (HY000): Can't connect to MySQL server`, o servidor não está em execução ou não está acessível. Inicie-o e tente novamente.
+
+### 3. Criar e importar o banco de dados
+
+#### Qual usuário devo utilizar?
+
+O usuário solicitado nesta etapa é uma conta do **MySQL**. Ele não é o usuário do Windows, GitHub ou do sistema desenvolvido.
+
+Na maioria das instalações locais, o usuário administrativo padrão é:
+
+```text
+root
+```
+
+A senha é aquela definida durante a instalação do MySQL. Se nenhuma senha tiver sido configurada, pressione `Enter` quando ela for solicitada.
+
+Se você já utiliza MySQL Workbench, SQLTools, XAMPP ou outro gerenciador, pode conferir o usuário nas configurações da conexão existente.
+
+O usuário utilizado precisa ter permissão para criar bancos e tabelas.
+
+Para entrar com o usuário padrão `root`, execute em um novo terminal:
+
+```powershell
+mysql -h 127.0.0.1 -P 3306 -u root -p
+```
+
+Se você utiliza outro usuário administrativo, substitua `root` pelo nome correspondente.
+
+Significado das opções:
+
+- `-h 127.0.0.1`: endereço do servidor MySQL local;
+- `-P 3306`: porta padrão do MySQL;
+- `-u root`: usuário da conexão;
+- `-p`: solicita a senha de forma segura.
+
+Após executar o comando, aparecerá:
+
+```text
+Enter password:
+```
+
+Digite a senha do MySQL e pressione `Enter`. Por segurança, nenhum caractere será exibido durante a digitação.
+
+Se a conexão funcionar, o terminal mostrará:
+
+```text
+mysql>
+```
+
+#### Importar o script
+
+No monitor do MySQL, quando estiver aparecendo `mysql>`, execute o script utilizando o caminho absoluto do projeto:
 
 ```sql
 SOURCE C:/caminho/do/projeto/database/schema.sql;
 ```
 
-No Windows, utilize barras `/` no caminho.
+Exemplo no Windows:
+
+```sql
+SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql;
+```
+
+No comando `SOURCE`, utilize barras `/`, mesmo no Windows.
 
 O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, índices e relacionamentos necessários.
 
-Também é possível abrir `database/schema.sql` no SQLTools e executar o arquivo utilizando uma conexão MySQL autorizada.
+Para confirmar a importação, execute:
 
-### 3. Configurar a conexão
+```sql
+USE teste_titan;
+SHOW TABLES;
+```
+
+O resultado deve apresentar as tabelas:
+
+```text
+service
+user
+```
+
+Para sair do MySQL:
+
+```sql
+EXIT;
+```
+
+> Se o comando `mysql` não for reconhecido, verifique se o MySQL está instalado e se sua pasta `bin` está configurada no PATH. Como alternativa, abra `database/schema.sql` no SQLTools e execute o arquivo utilizando uma conexão com permissão para criar bancos.
+
+### 4. Configurar a conexão
 
 Crie uma cópia do arquivo de exemplo.
 
@@ -192,7 +299,7 @@ No Linux ou macOS:
 cp config/database.example.php config/database.php
 ```
 
-Edite `config/database.php` com as credenciais da sua máquina:
+Edite `config/database.php` com as credenciais do MySQL instalado na sua máquina:
 
 ```php
 <?php
@@ -209,38 +316,18 @@ return [
 ];
 ```
 
+Substitua:
+
+- `seu_usuario`: pelo usuário do MySQL utilizado na etapa anterior;
+- `sua_senha`: pela senha correspondente a esse usuário.
+
+Esse usuário precisa possuir acesso ao banco `teste_titan`.
+
 O arquivo `config/database.php` está no `.gitignore` e não deve ser enviado ao repositório.
 
-### 4. Iniciar a aplicação
+### 5. Verificar a conexão
 
 Na raiz do projeto, execute:
-
-```powershell
-php -S 127.0.0.1:8000 -t public public/index.php
-```
-
-Acesse:
-
-```text
-http://127.0.0.1:8000
-```
-
-Mantenha o terminal aberto enquanto estiver utilizando o sistema.
-
-### 5. Criar o primeiro usuário
-
-Na página de login:
-
-1. Clique em **Cadastrar usuário**;
-2. Informe nome, e-mail e senha;
-3. Conclua o cadastro;
-4. Entre com as credenciais criadas.
-
-O projeto não fornece senhas ou usuários fixos.
-
-## Verificação da conexão
-
-Na raiz do projeto:
 
 ```powershell
 php -r "require 'app/Core/Database.php'; App\Core\Database::connection(); echo 'Conexao PDO realizada com sucesso.' . PHP_EOL;"
@@ -251,6 +338,41 @@ Resultado esperado:
 ```text
 Conexao PDO realizada com sucesso.
 ```
+
+Se ocorrer algum erro, confira:
+
+- Se o servidor MySQL está em execução;
+- Se o banco `teste_titan` foi criado;
+- Se usuário e senha estão corretos;
+- Se o usuário possui acesso ao banco;
+- Se a extensão `pdo_mysql` está habilitada.
+
+### 6. Iniciar a aplicação
+
+Na raiz do projeto, execute:
+
+```powershell
+php -S 127.0.0.1:8000 -t public public/index.php
+```
+
+Acesse no navegador:
+
+```text
+http://127.0.0.1:8000
+```
+
+Mantenha o terminal aberto enquanto estiver utilizando o sistema.
+
+### 7. Criar o primeiro usuário
+
+Na página de login:
+
+1. Clique em **Cadastrar usuário**;
+2. Informe nome, e-mail e senha;
+3. Conclua o cadastro;
+4. Entre com as credenciais criadas.
+
+O projeto não fornece senhas ou usuários fixos.
 
 ## Verificação da sintaxe
 
@@ -272,7 +394,9 @@ Get-ChildItem -Recurse -Filter *.php | ForEach-Object {
 
 Quando um serviço é finalizado, a aplicação tenta enviar uma notificação ao usuário responsável.
 
-O envio utiliza a função nativa `mail()` do PHP e depende da configuração de e-mail do servidor. Em ambientes locais sem essa configuração, o serviço é finalizado normalmente e a tentativa fica registrada em:
+O envio utiliza a função nativa `mail()` do PHP e depende da configuração de e-mail do servidor.
+
+Em ambientes locais sem essa configuração, o serviço é finalizado normalmente e a tentativa fica registrada em:
 
 ```text
 storage/logs/mail.log
