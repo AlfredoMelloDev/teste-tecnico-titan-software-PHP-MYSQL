@@ -261,6 +261,9 @@ Exemplo no Windows:
 
 ```sql
 SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql
+
+Exemplo de caminho na minha máquina :
+SOURCE C:/Users/SEU-USUARIO/Documents/teste-funcional-titan/teste-tecnico-titan-software-PHP-MYSQL/database/schema.sql
 ```
 
 Substitua o caminho do exemplo pelo local em que o projeto foi salvo em sua máquina.
@@ -449,9 +452,9 @@ Se o comando `mysql` não for reconhecido no PowerShell, verifique se o MySQL es
 
 Crie uma cópia do arquivo de exemplo.
 
-No PowerShell:
+Ainda no terminal do VSCode:
 
-```powershell
+```
 Copy-Item config/database.example.php config/database.php
 ```
 
@@ -473,8 +476,8 @@ return [
     'port' => '3306',
     'database' => 'teste_titan',
     'charset' => 'utf8mb4',
-    'username' => 'seu_usuario',
-    'password' => 'sua_senha',
+    'username' => 'seu_usuario', Provavelmente root
+    'password' => 'sua_senha',   Provavelmente campo vazio
 ];
 ```
 
@@ -493,9 +496,9 @@ Antes de executar o teste, confirme que o arquivo `config/database.php` contém 
 
 > A aplicação utiliza o arquivo `config/database.php`. O arquivo `config/database.example.php` serve apenas como modelo e não é carregado pelo sistema.
 
-Na raiz do projeto, execute:
+No terminal do VSCode, execute:
 
-```powershell
+```
 php -r "require 'app/Core/Database.php'; App\Core\Database::connection(); echo 'Conexao PDO realizada com sucesso.' . PHP_EOL;"
 ```
 
@@ -532,9 +535,9 @@ pdo_mysql
 
 ### 6. Iniciar a aplicação
 
-Na raiz do projeto, execute:
+No VSCode, execute:
 
-```powershell
+```
 php -S 127.0.0.1:8000 -t public public/index.php
 ```
 
