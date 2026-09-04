@@ -654,19 +654,15 @@ $hasActiveFilters = array_filter($filters) !== [];
 
                                                             Editar
                                                         </a>
-
                                                         <form
                                                             action="/services/finish"
                                                             method="post"
-                                                            data-confirm-finish>
-                                                            <input
-                                                                type="hidden"
-                                                                name="_token"
-                                                                value="<?= htmlspecialchars(
-                                                                            $csrfToken,
-                                                                            ENT_QUOTES,
-                                                                            'UTF-8'
-                                                                        ) ?>">
+                                                            data-confirm-finish
+                                                            data-service-description="<?= htmlspecialchars(
+                                                                                            $service['description'],
+                                                                                            ENT_QUOTES,
+                                                                                            'UTF-8'
+                                                                                        ) ?>">
 
                                                             <input
                                                                 type="hidden"
@@ -755,10 +751,58 @@ $hasActiveFilters = array_filter($filters) !== [];
     </div>
     <dialog
         class="confirm-dialog"
+        id="finish-dialog"
+        aria-labelledby="finish-dialog-title">
+        <div class="confirm-dialog__content">
+            <div class="confirm-dialog__text">
+                <h2 id="finish-dialog-title">
+                    Finalizar serviço?
+                </h2>
+
+                <p>
+                    Você está prestes a finalizar
+                    <strong id="finish-service-description">
+                        este serviço
+                    </strong>.
+                </p>
+
+                <p class="confirm-dialog__warning">
+                    A comissão e a data de finalização serão registradas.
+                    Depois disso, o serviço <strong>não poderá mais ser editado</strong>.
+                </p>
+            </div>
+
+            <div class="confirm-dialog__actions">
+                <button
+                    class="button button--secondary"
+                    id="cancel-finish"
+                    type="button">
+                    Cancelar
+                </button>
+
+                <button
+                    class="button button--primary"
+                    id="confirm-finish"
+                    type="button">
+                    <svg
+                        class="action-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="m8 12 2.5 2.5L16 9"></path>
+                    </svg>
+
+                    Sim, finalizar
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <dialog
+        class="confirm-dialog"
         id="delete-dialog"
         aria-labelledby="delete-dialog-title">
         <div class="confirm-dialog__content">
-
             <div class="confirm-dialog__text">
                 <h2 id="delete-dialog-title">
                     Excluir serviço?
@@ -772,7 +816,7 @@ $hasActiveFilters = array_filter($filters) !== [];
                 </p>
 
                 <p class="confirm-dialog__warning">
-                    Essa <strong>ação é permanente</strong> e não poderá ser desfeita.
+                    Essa ação é permanente e não poderá ser desfeita.
                 </p>
             </div>
 

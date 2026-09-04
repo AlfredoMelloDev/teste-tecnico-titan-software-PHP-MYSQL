@@ -1,21 +1,70 @@
 'use strict';
 
-/**
- * Mantém a confirmação simples para finalizar um serviço.
- */
+
+// Exibe um modal próprio antes de finalizar um serviço.
+ 
+const finishDialog = document.querySelector('#finish-dialog');
 const finishForms = document.querySelectorAll('[data-confirm-finish]');
+const cancelFinishButton = document.querySelector('#cancel-finish');
+const confirmFinishButton = document.querySelector('#confirm-finish');
+const finishDescription = document.querySelector(
+    '#finish-service-description'
+);
 
-finishForms.forEach((form) => {
-    form.addEventListener('submit', (event) => {
-        const confirmed = window.confirm(
-            'Deseja finalizar este serviço? Ele não poderá mais ser editado.'
-        );
+let pendingFinishForm = null;
 
-        if (!confirmed) {
+if (
+    finishDialog instanceof HTMLDialogElement
+    && cancelFinishButton instanceof HTMLButtonElement
+    && confirmFinishButton instanceof HTMLButtonElement
+    && finishDescription instanceof HTMLElement
+) {
+    finishForms.forEach((form) => {
+        form.addEventListener('submit', (event) => {
+            if (form.dataset.confirmed === 'true') {
+                return;
+            }
+
             event.preventDefault();
+            pendingFinishForm = form;
+
+            finishDescription.textContent =
+                form.dataset.serviceDescription || 'este serviço';
+
+            finishDialog.showModal();
+        });
+    });
+
+    cancelFinishButton.addEventListener('click', () => {
+        finishDialog.close();
+    });
+
+    confirmFinishButton.addEventListener('click', () => {
+        const formToSubmit = pendingFinishForm;
+
+        if (!(formToSubmit instanceof HTMLFormElement)) {
+            return;
+        }
+
+        // Evita que o envio abra o modal novamente.
+        formToSubmit.dataset.confirmed = 'true';
+        pendingFinishForm = null;
+
+        finishDialog.close();
+        formToSubmit.requestSubmit();
+    });
+
+    // Um clique na área escura também cancela a operação.
+    finishDialog.addEventListener('click', (event) => {
+        if (event.target === finishDialog) {
+            finishDialog.close();
         }
     });
-});
+
+    finishDialog.addEventListener('close', () => {
+        pendingFinishForm = null;
+    });
+}
 
 /**
  * Exibe um modal próprio antes de enviar a exclusão.
