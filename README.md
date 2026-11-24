@@ -1,630 +1,178 @@
-# Sistema de Controle de Serviços
+# Sistema Web para Gestão de Serviços e Comissões
 
-Sistema web desenvolvido para gerenciar os serviços prestados pelos funcionários da JM Informática.
+Sistema web para pequenas empresas prestadoras de serviço registrarem os atendimentos de cada funcionário e calcularem automaticamente a comissão no momento em que o serviço é finalizado.
 
-A aplicação utiliza PHP orientado a objetos, arquitetura MVC própria, MySQL com PDO e JavaScript puro. O projeto não utiliza frameworks, Composer ou gerenciadores externos de dependências.
+Projeto Tecnológico em Desenvolvimento de Sistemas, do curso de Análise e Desenvolvimento de Sistemas da ULBRA. O projeto evolui uma base criada como teste técnico (cadastro de serviços e cálculo de comissão), acrescentando perfis de acesso, clientes, administração de usuários, relatório de comissões e as proteções de integridade definidas no levantamento de requisitos (RF01 a RF15, RNF01 a RNF08).
 
-## Visão do sistema
+- **Aplicação publicada:** _(informar o endereço após a publicação)_
+- **Acesso para avaliação:** veja [Usuários de avaliação](#usuários-de-avaliação).
 
-O dashboard reúne os indicadores do usuário autenticado, os últimos serviços pendentes e o gerenciamento dos registros.
+![Dashboard do gestor](docs/images/dashboard.png)
 
-![Dashboard do Sistema de Controle de Serviços](docs/images/dashboard.png)
+## Funcionalidades
 
-A área de gerenciamento permite pesquisar serviços por descrição, usuário, status e período, além de editar, finalizar ou excluir os registros.
+| Funcionalidade | Gestor | Funcionário |
+|---|---|---|
+| Login e saída (sessão renovada, usuário inativo não entra) | ✓ | ✓ |
+| Dashboard: total, pendentes, finalizados, valor dos serviços e 5 pendências recentes | Operação geral | Somente os seus |
+| Registrar serviço (cliente ativo, descrição, valor) | Escolhe o responsável | Sempre o responsável |
+| Editar serviço pendente (descrição, valor, cliente) | Todos; também troca o responsável | Somente os seus |
+| Finalizar serviço (registra data, comissão, percentual e quem finalizou) | Todos | Somente os seus |
+| Excluir serviço pendente | ✓ | — |
+| Pesquisar serviços: descrição, cliente, responsável, situação e período, 25 por página | Todos | Somente os seus |
+| Clientes: cadastrar | ✓ | ✓ |
+| Clientes: consultar | Ativos e inativos | Ativos (e os inativos dos seus serviços) |
+| Clientes: editar e inativar | ✓ | — |
+| Usuários: cadastrar, editar perfil e inativar | ✓ | — |
+| Relatório de serviços finalizados e comissões, com totais | Todos ou por responsável | Somente os seus |
 
-![Filtros e gerenciamento dos serviços](docs/images/dashboard-filtros-servicos.png)
-
-## Funcionalidades implementadas
-
-- Cadastro de usuários;
-- Autenticação por e-mail e senha;
-- Controle de acesso por sessão;
-- Encerramento seguro da sessão;
-- Dashboard com informações do usuário autenticado;
-- Indicadores individuais de valores, serviços pendentes e finalizados;
-- Cadastro de serviços para o usuário autenticado;
-- Listagem dos serviços e seus responsáveis;
-- Edição de serviços pendentes;
-- Exclusão de serviços com confirmação personalizada;
-- Finalização de serviços;
-- Registro da data de finalização;
-- Cálculo automático da comissão;
-- Notificação por e-mail após a finalização;
-- Filtro por descrição do serviço;
-- Filtro por nome do usuário;
-- Filtro por status;
-- Filtro por período;
-- Mensagens temporárias de sucesso e erro;
-- Proteção CSRF nos formulários;
-- Registro local de erros e tentativas de e-mail;
-- Interface responsiva para computadores, tablets e celulares.
+<p align="center">
+  <img src="docs/images/servicos.png" alt="Listagem de serviços" width="49%">
+  <img src="docs/images/relatorio.png" alt="Relatório de comissões" width="49%">
+</p>
 
 ## Regras de negócio
 
-### Status do serviço
+**Comissão (RF10).** Calculada na finalização, sobre o valor integral do serviço (sem cálculo progressivo), com duas casas decimais:
 
-O status é definido pela data de finalização:
+| Valor do serviço | Percentual | Exemplo |
+|---|---:|---|
+| Até R$ 1.000,00 | 5% | R$ 800,00 → R$ 40,00 |
+| Acima de R$ 1.000,00 até R$ 10.000,00 | 10% | R$ 2.500,00 → R$ 250,00 |
+| Acima de R$ 10.000,00 | 20% | R$ 12.000,00 → R$ 2.400,00 |
 
-- Sem data de finalização: `Pendente`;
-- Com data de finalização: `Finalizado`.
+As faixas são fixas no sistema e iguais para todos os funcionários. O percentual aplicado é gravado junto com a comissão (`commission_rate`), de modo que, se as faixas mudarem no futuro, os serviços já finalizados continuam com o cálculo da época. O cálculo é feito em centavos inteiros para evitar erros de arredondamento de ponto flutuante.
 
-Depois de finalizado, o serviço não pode mais ser editado pela aplicação.
+**Situação do serviço.** Não existe coluna de situação: o serviço é *pendente* enquanto `finished_at` está vazio e *finalizado* quando a data é registrada.
 
-### Comissão
+**Serviço finalizado não muda (RF11).** Depois da finalização o serviço não pode ser editado nem excluído. A finalização roda em uma transação que bloqueia o registro (`SELECT ... FOR UPDATE`): se alguém estiver editando o valor ao mesmo tempo, a finalização espera e calcula a comissão sobre o valor final.
 
-A comissão é calculada no momento da finalização:
+**Inativar em vez de apagar.** Usuários e clientes são inativados, nunca excluídos. Os serviços anteriores continuam vinculados a eles. Um cliente inativo não pode ser escolhido para novos serviços, e o último gestor ativo não pode ser inativado nem perder o perfil de gestor.
 
-| Valor do serviço | Comissão |
-|---|---:|
-| Até R$ 1.000,00 | 5% |
-| Acima de R$ 1.000,00 até R$ 10.000,00 | 10% |
-| Acima de R$ 10.000,00 | 20% |
+**Cancelamento e estorno.** Não fazem parte desta versão (não estão entre os requisitos). A evolução prevista é registrar um lançamento de estorno ligado ao serviço finalizado, preservando o histórico em vez de alterá-lo.
 
-Exemplos:
+## Tecnologias
 
-| Serviço | Percentual | Comissão |
-|---:|---:|---:|
-| R$ 800,00 | 5% | R$ 40,00 |
-| R$ 2.500,00 | 10% | R$ 250,00 |
-| R$ 12.000,00 | 20% | R$ 2.400,00 |
+- PHP 8.1 ou superior, orientado a objetos, com arquitetura MVC própria (sem framework, sem Composer)
+- MySQL 8.0.16 ou superior (ou MariaDB 10.5+) com PDO e consultas preparadas
+- HTML, CSS e JavaScript sem bibliotecas externas
+- Git para versionamento
 
-### Indicadores do dashboard
-
-Os cards e a lista de pendências consideram somente os serviços do usuário autenticado.
-
-A tabela geral apresenta os serviços de todos os funcionários. Os filtros aplicados à tabela não alteram os indicadores individuais.
-
-## Tecnologias utilizadas
-
-- PHP 8;
-- MySQL;
-- PDO;
-- HTML5;
-- CSS3;
-- JavaScript;
-- Arquitetura MVC;
-- Servidor interno do PHP.
-
-## Restrições respeitadas
-
-- Sem framework de backend;
-- Sem framework de frontend;
-- Sem Composer;
-- Sem ORM;
-- Consultas realizadas diretamente com PDO;
-- JavaScript sem bibliotecas externas.
-
-## Estrutura do projeto
+## Estrutura
 
 ```text
 projeto/
 ├── app/
-│   ├── Controllers/
-│   ├── Core/
-│   ├── Models/
-│   ├── Services/
-│   └── Views/
-├── config/
-│   └── database.example.php
-├── database/
-│   └── schema.sql
-├── docs/
-│   └── images/
-├── public/
-│   ├── assets/
-│   │   ├── css/
-│   │   └── js/
-│   └── index.php
-├── storage/
-│   └── logs/
-├── .gitignore
-└── README.md
+│   ├── Controllers/   recebem a requisição, conferem permissão e chamam modelos e serviços
+│   ├── Core/          roteador, autenticação e perfis, CSRF, conexão, mensagens, logs
+│   ├── Models/        consultas ao banco (User, Client, Service), com paginação
+│   ├── Services/      regras de negócio: comissão, finalização em transação, e-mail
+│   └── Views/         telas (layout comum, serviços, clientes, usuários, relatório)
+├── config/            database.example.php (modelo da conexão)
+├── database/          schema.sql, seed.sql e migration_v2.sql
+├── docs/images/       imagens desta documentação
+├── public/            index.php (ponto de entrada), .htaccess, CSS e JavaScript
+└── storage/logs/      registros técnicos (fora da pasta pública)
 ```
 
-### Responsabilidades
+## Instalação local
 
-- `app/Controllers`: recebe as requisições e coordena as operações;
-- `app/Core`: contém roteamento, autenticação, CSRF, autoload e conexão;
-- `app/Models`: executa consultas e alterações no banco;
-- `app/Services`: concentra regras como comissão e envio de e-mail;
-- `app/Views`: contém as páginas apresentadas ao usuário;
-- `config`: contém o modelo de configuração do banco;
-- `database`: contém o script de criação das tabelas;
-- `docs/images`: armazena as imagens utilizadas na documentação;
-- `public`: ponto de entrada e arquivos públicos;
-- `storage/logs`: armazena os registros locais da aplicação.
+### 1. Requisitos
 
-## Requisitos
+- PHP 8.1+ com as extensões `pdo_mysql` e `mbstring` (confira com `php -m`)
+- MySQL 8.0.16+ ou MariaDB 10.5+ em execução
 
-Antes de iniciar, verifique se estão instalados:
+### 2. Banco de dados
 
-- PHP 8 ou superior;
-- MySQL;
-- Git;
-- Extensão PHP `PDO`;
-- Extensão PHP `pdo_mysql`;
-- Extensão PHP `session`.
+Crie um banco vazio e importe os scripts, nesta ordem:
 
-Para conferir as extensões disponíveis:
+```sql
+CREATE DATABASE gestao_servicos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE gestao_servicos;
+SOURCE C:/caminho/do/projeto/database/schema.sql
+SOURCE C:/caminho/do/projeto/database/seed.sql
+```
+
+- `schema.sql` cria as tabelas `user`, `client` e `service`, com chaves estrangeiras e restrições `CHECK`.
+- `seed.sql` cria os usuários de avaliação e dados de exemplo: cinco clientes e sete serviços, três deles finalizados (um em cada faixa de comissão). As datas são relativas ao dia da importação.
+
+No `SOURCE`, use o caminho completo com barras `/` e sem `;` no final. Também é possível abrir os arquivos no MySQL Workbench ou no phpMyAdmin e executá-los.
+
+> **Já tem um banco da versão anterior (tabelas `user` e `service` do teste técnico)?** Faça uma cópia de segurança e execute somente `database/migration_v2.sql`. Ela renomeia as colunas, adiciona o perfil (o primeiro usuário vira gestor), cria a tabela de clientes e vincula os serviços antigos a um cliente genérico inativo.
+
+### 3. Conexão
+
+Copie o modelo e informe os dados do seu MySQL:
 
 ```powershell
-php -m
-```
-
-## Instalação
-
-### 1. Clonar o repositório
-
-```powershell
-git clone https://github.com/AlfredoMelloDev/teste-tecnico-titan-software-PHP-MYSQL.git
-cd teste-tecnico-titan-software-PHP-MYSQL
-```
-
-### 2. Iniciar o servidor MySQL
-
-Antes de criar o banco de dados, certifique-se de que o MySQL esteja instalado e em execução.
-
-A forma de inicialização depende de como ele foi instalado.
-
-#### Instalação pelo Scoop ou versão portátil
-
-Abra um PowerShell separado e execute:
-
-```powershell
-mysqld --console
-```
-
-Aguarde até aparecer:
-
-```text
-ready for connections
-```
-
-Mantenha esse terminal aberto enquanto estiver utilizando o banco de dados. Abra outro terminal para executar as próximas etapas.
-
-#### MySQL instalado como serviço do Windows
-
-Pressione `Win + R`, digite:
-
-```text
-services.msc
-```
-
-Procure por um serviço com nome semelhante a `MySQL`, `MySQL80` ou `MySQL90`.
-
-Se estiver parado, clique com o botão direito e selecione **Iniciar**.
-
-#### XAMPP ou WampServer
-
-Abra o painel do programa e inicie o módulo **MySQL**.
-
-> Se aparecer `ERROR 2003 (HY000): Can't connect to MySQL server`, o servidor não está em execução ou não está acessível. Inicie-o e tente novamente.
-
-### 3. Criar e importar o banco de dados
-
-#### Qual usuário devo utilizar?
-
-O usuário solicitado nesta etapa é uma conta do **MySQL**. Ele não é o usuário do Windows, do GitHub ou do sistema desenvolvido.
-
-Na maioria das instalações locais, o usuário administrativo padrão é:
-
-```text
-root
-```
-
-A senha é aquela definida durante a instalação do MySQL. Se nenhuma senha tiver sido configurada, pressione `Enter` quando ela for solicitada.
-
-Se você já utiliza MySQL Workbench, SQLTools, XAMPP, WampServer ou outro gerenciador, consulte as configurações da conexão existente para identificar o usuário e a porta utilizados.
-
-> O usuário escolhido precisa ter permissão para criar bancos e tabelas. Caso contrário, a importação apresentará a mensagem `Access denied`.
-
-No VS Code, abra um novo terminal e execute o seguinte comando para entrar com o usuário padrão `root`:
-
-```powershell
-mysql -h 127.0.0.1 -P 3306 -u root -p
-```
-
-Se você utiliza outro usuário administrativo, substitua `root` pelo nome correspondente.
-
-Significado das opções:
-
-- `-h 127.0.0.1`: endereço do servidor MySQL local;
-- `-P 3306`: porta padrão do MySQL;
-- `-u root`: usuário utilizado na conexão;
-- `-p`: solicita a senha de forma segura.
-
-Após executar o comando, aparecerá:
-
-```text
-Enter password:
-```
-
-Digite a senha do MySQL e pressione `Enter`. Por segurança, nenhum caractere será exibido durante a digitação.
-
-Se o usuário não possuir senha, apenas pressione `Enter`.
-
-Quando a conexão for realizada corretamente, o terminal mostrará:
-
-```text
-mysql>
-```
-
-#### Importar o script
-
-Com o terminal exibindo `mysql>` e no arquivo database.example.php os campos username(root) e password(\*campo vazio) ajustados, execute o arquivo `database/schema.sql` através do caminho completo da pasta em que o projeto foi salvo:
-
-```sql
-SOURCE C:/caminho/completo/do/projeto/database/schema.sql
-```
-
-Exemplo no Windows:
-
-```sql
-SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql
-
-Exemplo de caminho na minha máquina :
-SOURCE C:/Users/SEU-USUARIO/Documents/teste-funcional-titan/teste-tecnico-titan-software-PHP-MYSQL/database/schema.sql
-```
-
-Substitua o caminho do exemplo pelo local em que o projeto foi salvo em sua máquina.
-
-Caso não saiba o caminho completo do arquivo, abra outro terminal do PowerShell na raiz do projeto e execute:
-
-```powershell
-Resolve-Path .\database\schema.sql
-```
-
-O PowerShell apresentará o caminho completo. Copie esse caminho e substitua as barras `\` por `/` antes de utilizá-lo no comando `SOURCE`.
-
-No comando `SOURCE`:
-
-- utilize o caminho completo até o arquivo `schema.sql`;
-- utilize barras `/`, mesmo no Windows;
-- não coloque ponto e vírgula no final;
-- mantenha o primeiro terminal do MySQL aberto durante a importação.
-
-O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, os índices e os relacionamentos necessários.
-
-Para confirmar que a importação foi concluída, execute:
-
-```sql
-USE teste_titan;
-SHOW TABLES;
-```
-
-O resultado deverá apresentar estas tabelas:
-
-```text
-service
-user
-```
-
-Para sair do MySQL, execute:
-
-```sql
-EXIT;
-```
-
-#### Possíveis erros durante a importação
-
-Se aparecer a mensagem `Failed to open file`, verifique se:
-
-- o caminho informado corresponde à pasta em que o projeto foi salvo;
-- o arquivo `database/schema.sql` existe;
-- o caminho contém todas as pastas necessárias;
-- as barras foram escritas como `/`;
-- não foi colocado `;` no final do comando `SOURCE`.
-
-Se aparecer a mensagem `Access denied`, o usuário utilizado não possui permissão para criar ou acessar o banco.
-
-Nesse caso, saia do MySQL:
-
-```sql
-EXIT;
-```
-
-Depois, conecte-se novamente utilizando o usuário `root` ou outra conta administrativa:
-
-```powershell
-mysql -h 127.0.0.1 -P 3306 -u root -p
-```
-
-Se aparecer uma mensagem informando que não foi possível conectar ao servidor MySQL, confirme que o servidor foi iniciado conforme explicado na etapa anterior.
-
-Se o comando `mysql` não for reconhecido no PowerShell, verifique se o MySQL está instalado e se sua pasta `bin` está configurada na variável de ambiente `PATH`.
-
-Como alternativa, abra o arquivo `database/schema.sql` no SQLTools ou no MySQL Workbench e execute-o utilizando uma conexão com permissão para criar bancos.
-
-> As credenciais do arquivo `config/database.php` serão configuradas na próxima etapa. Esse arquivo não interfere na execução do comando `SOURCE`.
-
-
-#### Qual usuário devo utilizar?
-
-O usuário solicitado nesta etapa é uma conta do **MySQL**. Ele não é o usuário do Windows, GitHub ou do sistema desenvolvido.
-
-Na maioria das instalações locais, o usuário administrativo padrão é:
-
-```text
-root
-```
-
-A senha é aquela definida durante a instalação do MySQL. Se nenhuma senha tiver sido configurada, pressione `Enter` quando ela for solicitada.
-
-Se você já utiliza MySQL Workbench, SQLTools, XAMPP ou outro gerenciador, pode conferir o usuário nas configurações da conexão existente.
-
-O usuário utilizado precisa ter permissão para criar bancos e tabelas.
-
-
-No VSCode, para entrar com o usuário padrão `root`, execute em um novo terminal:
-
-```VSCODE
-mysql -h 127.0.0.1 -P 3306 -u root -p
-```
-
-Se você utiliza outro usuário administrativo, substitua `root` pelo nome correspondente.
-
-Significado das opções:
-
-- `-h 127.0.0.1`: endereço do servidor MySQL local;
-- `-P 3306`: porta padrão do MySQL;
-- `-u root`: usuário da conexão;
-- `-p`: solicita a senha de forma segura.
-
-Após executar o comando, aparecerá:
-
-```text
-Enter password:
-```
-
-Digite a senha do MySQL e pressione `Enter`. Por segurança, nenhum caractere será exibido durante a digitação.
-
-Se a conexão funcionar, o terminal mostrará:
-
-```text
-mysql>
-```
-
-#### Importar o script
-
-Depois de acessar o MySQL com o usuário `root` ou outra conta com permissão para criar bancos, o terminal deverá exibir:
-
-```text
-mysql>
-```
-
-Execute o arquivo `database/schema.sql` utilizando o caminho completo da pasta em que o projeto foi salvo:
-
-```sql
-SOURCE C:/caminho/completo/do/projeto/database/schema.sql
-```
-
-Exemplo no Windows:
-
-```sql
-SOURCE C:/Users/SEU_NOME/Documents/teste-titan/database/schema.sql
-```
-
-> Substitua o caminho do exemplo pelo local em que o projeto foi salvo em sua máquina.
-
-No comando `SOURCE`:
-
-- utilize barras `/`, mesmo no Windows;
-- não coloque ponto e vírgula no final do caminho;
-- utilize uma conta do MySQL com permissão para criar bancos, como `root`.
-
-O script cria automaticamente o banco `teste_titan`, seleciona esse banco e cria as tabelas, os índices e os relacionamentos necessários.
-
-Para confirmar que a importação foi concluída, execute:
-
-```sql
-USE teste_titan;
-SHOW TABLES;
-```
-
-O resultado deverá apresentar estas tabelas:
-
-```text
-service
-user
-```
-
-Para sair do MySQL, execute:
-
-```sql
-EXIT;
-```
-
-Se aparecer a mensagem `Failed to open file`, confira se:
-
-- o caminho informado corresponde à pasta em que o projeto foi salvo;
-- o arquivo `database/schema.sql` existe;
-- não foi colocado `;` no final do comando `SOURCE`.
-
-Se aparecer `Access denied`, o usuário utilizado não possui permissão para criar ou acessar o banco. Saia do MySQL com `EXIT;` e conecte-se novamente utilizando o usuário `root` ou outra conta administrativa:
-
-```powershell
-mysql -h 127.0.0.1 -P 3306 -u root -p
-```
-
-Se o comando `mysql` não for reconhecido no PowerShell, verifique se o MySQL está instalado e se sua pasta `bin` está configurada no `PATH`. Como alternativa, abra o arquivo `database/schema.sql` no SQLTools ou no MySQL Workbench e execute-o utilizando uma conexão com permissão para criar bancos.
-
-### 4. Configurar a conexão
-
-Crie uma cópia do arquivo de exemplo.
-
-Ainda no terminal do VSCode:
-
-```
 Copy-Item config/database.example.php config/database.php
 ```
 
-No Linux ou macOS:
-
-```bash
-cp config/database.example.php config/database.php
-```
-
-Edite `config/database.php` com as credenciais do MySQL instalado na sua máquina:
-
 ```php
-<?php
-
-declare(strict_types=1);
-
 return [
     'host' => '127.0.0.1',
     'port' => '3306',
-    'database' => 'teste_titan',
+    'database' => 'gestao_servicos',
     'charset' => 'utf8mb4',
-    'username' => 'seu_usuario', Provavelmente root
-    'password' => 'sua_senha',   Provavelmente campo vazio
+    'username' => 'root',
+    'password' => '',
 ];
 ```
 
-Substitua:
+O arquivo `config/database.php` está no `.gitignore` e não vai para o repositório.
 
-- `seu_usuario`: pelo usuário do MySQL utilizado na etapa anterior;
-- `sua_senha`: pela senha correspondente a esse usuário.
-
-Esse usuário precisa possuir acesso ao banco `teste_titan`.
-
-O arquivo `config/database.php` está no `.gitignore` e não deve ser enviado ao repositório.
-
-### 5. Verificar a conexão
-
-Antes de executar o teste, confirme que o arquivo `config/database.php` contém as credenciais do MySQL instalado em sua máquina.
-
-> A aplicação utiliza o arquivo `config/database.php`. O arquivo `config/database.example.php` serve apenas como modelo e não é carregado pelo sistema.
-
-No terminal do VSCode, execute:
-
-```
-php -r "require 'app/Core/Database.php'; App\Core\Database::connection(); echo 'Conexao PDO realizada com sucesso.' . PHP_EOL;"
-```
-
-O resultado esperado é:
-
-```text
-Conexao PDO realizada com sucesso.
-```
-
-Se ocorrer algum erro, verifique:
-
-- se o servidor MySQL está em execução;
-- se o banco `teste_titan` foi criado;
-- se o arquivo `config/database.php` existe;
-- se o nome do banco está definido como `teste_titan`;
-- se o usuário e a senha informados estão corretos;
-- se o usuário possui permissão para acessar o banco;
-- se a extensão `pdo_mysql` está habilitada no PHP.
-
-O erro `Access denied` indica que o usuário ou a senha estão incorretos, ou que o usuário informado não possui acesso ao banco. Nesse caso, abra `config/database.php` e informe as mesmas credenciais utilizadas para acessar o MySQL durante a importação.
-
-Para verificar se a extensão `pdo_mysql` está habilitada, execute:
+### 4. Executar
 
 ```powershell
-php -m | Select-String "pdo_mysql"
-```
-
-Se estiver habilitada, o terminal exibirá:
-
-```text
-pdo_mysql
-```
-```
-
-### 6. Iniciar a aplicação
-
-No VSCode, execute:
-
-```
 php -S 127.0.0.1:8000 -t public public/index.php
 ```
 
-Acesse no navegador:
+Acesse `http://127.0.0.1:8000` e entre com um dos usuários abaixo.
 
-```text
-http://127.0.0.1:8000
-```
+## Usuários de avaliação
 
-Mantenha o terminal aberto enquanto estiver utilizando o sistema.
+Criados pelo `seed.sql`:
 
-### 7. Criar o primeiro usuário
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Gestor | `gestor@avaliacao.com` | `Gestor@2026` |
+| Funcionário | `funcionario@avaliacao.com` | `Funcionario@2026` |
 
-Na página de login:
+Não existe cadastro público: novos usuários são criados pelo gestor, em **Usuários**.
 
-1. Clique em **Cadastrar usuário**;
-2. Informe nome, e-mail e senha;
-3. Conclua o cadastro;
-4. Entre com as credenciais criadas.
+## Publicação em hospedagem
 
-O projeto não fornece senhas ou usuários fixos.
-
-## Verificação da sintaxe
-
-Para verificar um arquivo:
-
-```powershell
-php -l public/index.php
-```
-
-Para verificar todos os arquivos PHP no PowerShell:
-
-```powershell
-Get-ChildItem -Recurse -Filter *.php | ForEach-Object {
-    php -l $_.FullName
-}
-```
-
-## Envio de e-mail
-
-Quando um serviço é finalizado, a aplicação tenta enviar uma notificação ao usuário responsável.
-
-O envio utiliza a função nativa `mail()` do PHP e depende da configuração de e-mail do servidor.
-
-Em ambientes locais sem essa configuração, o serviço é finalizado normalmente e a tentativa fica registrada em:
-
-```text
-storage/logs/mail.log
-```
-
-Para consultar o arquivo no Windows PowerShell:
-
-```powershell
-Get-Content .\storage\logs\mail.log -Tail 20 -Encoding UTF8
-```
-
-Em produção, o servidor deve possuir um transporte de e-mail configurado.
+1. Crie o banco no painel da hospedagem e importe `schema.sql` e `seed.sql` (pelo phpMyAdmin, por exemplo).
+2. Envie os arquivos do projeto. O ideal é apontar a raiz do domínio para a pasta `public/`. Se a hospedagem só permitir a pasta `public_html`, envie o **conteúdo** de `public/` para dentro de `public_html` e as pastas `app/`, `config/`, `database/` e `storage/` para o nível acima dela. O `index.php` encontra as outras pastas um nível acima de onde está.
+3. Crie `config/database.php` com os dados do banco da hospedagem.
+4. Garanta permissão de escrita em `storage/logs/`.
+5. Em Apache, o `public/.htaccess` direciona as rotas para o `index.php` e força HTTPS. Em Nginx, use `try_files $uri /index.php?$query_string;`.
+6. Ative o certificado HTTPS no painel. Enquanto ele não estiver ativo, comente as duas linhas de HTTPS do `.htaccess`.
 
 ## Segurança
 
-O projeto utiliza:
+- Senhas guardadas somente como hash (`password_hash` / `password_verify`); a sessão é renovada no login e na saída.
+- Cookie de sessão `HttpOnly`, `SameSite=Lax` e `Secure` quando a conexão é HTTPS.
+- A cada requisição o usuário é conferido no banco: se tiver sido inativado, a sessão é encerrada.
+- Permissões verificadas no servidor em todas as rotas, inclusive quando a URL é digitada diretamente.
+- Token CSRF em todas as operações que alteram dados.
+- Consultas preparadas com PDO (emulação desativada) e escape de todo conteúdo exibido.
+- Erros não são mostrados ao usuário: o detalhe técnico vai para `storage/logs/app.log`.
 
-- `password_hash()` para armazenamento das senhas;
-- `password_verify()` durante a autenticação;
-- Renovação do identificador da sessão após o login;
-- Consultas preparadas com PDO;
-- Emulação de prepared statements desabilitada;
-- Tokens CSRF nas requisições `POST`;
-- Escape de conteúdo com `htmlspecialchars`;
-- Validação dos dados recebidos;
-- Controle de acesso às páginas autenticadas;
-- Credenciais locais ignoradas pelo Git;
-- Erros técnicos registrados fora da interface.
+## Testes
 
-## Banco de dados
+Durante o desenvolvimento, a aplicação foi testada com um banco MariaDB, nos dois perfis, por um roteiro automatizado de requisições HTTP (não incluído no repositório). O roteiro cobre login e sessão, permissões por URL direta, faixas de comissão (inclusive os limites de R$ 1.000,00 e R$ 10.000,00), finalização repetida, edição e exclusão de serviço finalizado, cliente inativo, regra do último gestor, datas inválidas, paginação, CSRF e escape de HTML. Também foi testada a finalização simultânea a uma edição e a migração de um banco da versão anterior.
 
-O script solicitado para criação das tabelas está disponível em:
+Para conferir a sintaxe dos arquivos PHP:
 
-```text
-database/schema.sql
+```powershell
+Get-ChildItem -Recurse -Filter *.php | ForEach-Object { php -l $_.FullName }
 ```
 
-As tabelas principais são:
+## E-mail de finalização
 
-- `user`: armazena usuários e credenciais;
-- `service`: armazena serviços, valores, finalização, comissão e responsável.
+Ao finalizar um serviço, a aplicação tenta avisar o responsável por e-mail com a função `mail()` do PHP. Se o servidor não tiver envio configurado, a finalização acontece normalmente e a tentativa fica registrada em `storage/logs/mail.log`.
 
 ## Autor
 
-Desenvolvido por [Alfredo Mello](https://github.com/AlfredoMelloDev).
+Alfredo Candido Mello Neto, [AlfredoMelloDev](https://github.com/AlfredoMelloDev).
