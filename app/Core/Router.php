@@ -27,6 +27,8 @@ final class Router
         $this->routes[$method][$path] = $handler;
     }
 
+
+    // Faz o roteamento da requisição atual para o manipulador correspondente.
     public function dispatch(string $method, string $uri): void
     {
         // Considera somente o caminho, ignorando parâmetros de filtros da URL.
@@ -44,6 +46,7 @@ final class Router
         call_user_func($handler);
     }
 
+    // Normaliza o caminho da rota para evitar diferenças entre "/login" e "/login/".
     private function normalizePath(string $path): string
     {
         // Evita que "/login" e "/login/" sejam tratadas como rotas diferentes.

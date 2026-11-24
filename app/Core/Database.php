@@ -18,6 +18,7 @@ final class Database
 
     public static function connection(): PDO
     {
+        // Retorna a conexão existente quando já foi criada.
         if (self::$connection instanceof PDO) {
             return self::$connection;
         }
@@ -48,6 +49,13 @@ final class Database
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]
         );
+
+        /*
+         * NOW() e CURRENT_TIMESTAMP usam o fuso do servidor MySQL, que na hospedagem
+         * costuma ser UTC. A sessão passa a usar o mesmo fuso do PHP (America/Sao_Paulo),
+         * para que datas de cadastro e de conclusão fiquem no horário de Brasília.
+         */
+        self::$connection->exec("SET time_zone = '" . date('P') . "'");
 
         return self::$connection;
     }

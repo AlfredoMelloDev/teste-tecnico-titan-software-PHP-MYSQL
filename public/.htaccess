@@ -1,0 +1,19 @@
+# Apache: envia todas as rotas (/services, /clients...) para o index.php,
+# exceto arquivos que existem de verdade (CSS, JavaScript, imagens).
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Força HTTPS (RNF02), exceto em endereços locais de desenvolvimento (.test, localhost).
+    # Comente as regras abaixo se o servidor publicado ainda não tiver certificado.
+    RewriteCond %{HTTP_HOST} !\.test$ [NC]
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:\d+)?$ [NC]
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

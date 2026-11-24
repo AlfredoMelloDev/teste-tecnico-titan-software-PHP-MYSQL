@@ -8,6 +8,6 @@ return [
     'port' => '3306',
     'database' => 'teste_titan',
     'charset' => 'utf8mb4',
-    'username' => 'usuario',
-    'password' => 'senha',
+    'username' => 'root',
+    'password' => '',
 ];
