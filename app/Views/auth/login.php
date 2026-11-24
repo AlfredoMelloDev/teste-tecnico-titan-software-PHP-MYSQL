@@ -121,8 +121,7 @@ $csrfToken = Csrf::token();
                 </form>
 
                 <p class="form-footer">
-                    Ainda não possui uma conta?
-                    <a href="/users/create">Cadastrar usuário</a>
+                    Não tem acesso? Solicite o cadastro ao gestor da empresa.
                 </p>
             </div>
         </section>

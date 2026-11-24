@@ -4,96 +4,72 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\Csrf;
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Csrf;
+use App\Core\Flash;
 use App\Models\User;
 
 final class AuthController extends Controller
 {
-    private User $users;
-
-    public function __construct()
-    {
-        $this->users = new User();
-    }
-
-
+    // UC01 - tela de login.
     public function showLogin(): void
     {
+        if (Auth::check()) {
+            $this->redirect('/dashboard');
+        }
 
-        $error = $_SESSION['login_error'] ?? null;
-        $success = $_SESSION['login_success'] ?? null;
-        $oldEmail = $_SESSION['login_email'] ?? '';
-
-        // Mensagens temporárias devem aparecer somente uma vez.
-        unset(
-            $_SESSION['login_error'],
-            $_SESSION['login_success'],
-            $_SESSION['login_email']
-        );
+        // Mensagens de sessão encerrada ou de erro de login chegam pela Flash.
+        $messages = Flash::pullMessages();
+        $old = Flash::pullOld();
 
         $this->view('auth/login', [
             'title' => 'Entrar no sistema',
-            'error' => $error,
-            'success' => $success,
-            'oldEmail' => $oldEmail,
+            'error' => $messages['error'] ?? null,
+            'success' => $messages['success'] ?? null,
+            'oldEmail' => (string) ($old['email'] ?? ''),
+            'flash' => [],
         ]);
     }
 
+    // UC01 - valida as credenciais e cria a sessão com o perfil do usuário.
     public function login(): void
     {
-        // Validação do token CSRF
         if (!Csrf::validate($_POST['_token'] ?? null)) {
-            $_SESSION['login_error'] =
-                'A solicitação expirou. Atualize a página e tente novamente.';
-
-            header('Location: /login');
-            exit;
+            Flash::error('A página expirou. Tente entrar novamente.');
+            $this->redirect('/login');
         }
 
-        $email = trim($_POST['email'] ?? '');
+        $email = mb_strtolower(trim($_POST['email'] ?? ''));
         $password = $_POST['password'] ?? '';
 
         $user = filter_var($email, FILTER_VALIDATE_EMAIL)
-            ? $this->users->findActiveByEmail($email)
+            ? (new User())->findActiveByEmail($email)
             : null;
 
-        if (
-            $user === null
-            || !password_verify($password, $user['password'])
-        ) {
-            // A mensagem genérica não revela se foi o e-mail ou a senha que falhou.
-            $_SESSION['login_error'] =
-                'Email ou Senha incorretos. Por favor, tente novamente.';
-
-            $_SESSION['login_email'] = $email;
-
-            header('Location: /login');
-            exit;
+        // Mensagem genérica: não revela se o e-mail existe ou se a senha está errada (FA1).
+        if ($user === null || !password_verify($password, $user['password'])) {
+            Flash::error('E-mail ou senha incorretos, ou usuário inativo.');
+            Flash::setOld(['email' => $email]);
+            $this->redirect('/login');
         }
 
-        // Registra o usuário e renova o identificador da sessão.
         Auth::login($user);
 
-        header('Location: /dashboard');
-        exit;
+        $this->redirect('/dashboard');
     }
 
+    // UC02 - encerra a sessão.
     public function logout(): void
     {
-        // Validação do token CSRF
         if (!Csrf::validate($_POST['_token'] ?? null)) {
-            $_SESSION['dashboard_error'] =
-                'A solicitação expirou. Atualize a página e tente novamente.';
-
-            header('Location: /dashboard');
-            exit;
+            Flash::error('A página expirou. Atualize e tente novamente.');
+            $this->redirect('/dashboard');
         }
 
         Auth::logout();
+        Flash::success('Sessão encerrada.');
 
-        header('Location: /login');
-        exit;
+        $this->redirect('/login');
     }
 }
