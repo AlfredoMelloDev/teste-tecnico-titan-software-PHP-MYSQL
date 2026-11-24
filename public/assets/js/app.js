@@ -1,133 +1,106 @@
 'use strict';
 
-
-// Exibe um modal próprio antes de finalizar um serviço.
- 
-const finishDialog = document.querySelector('#finish-dialog');
-const finishForms = document.querySelectorAll('[data-confirm-finish]');
-const cancelFinishButton = document.querySelector('#cancel-finish');
-const confirmFinishButton = document.querySelector('#confirm-finish');
-const finishDescription = document.querySelector(
-    '#finish-service-description'
-);
-
-let pendingFinishForm = null;
-
-if (
-    finishDialog instanceof HTMLDialogElement
-    && cancelFinishButton instanceof HTMLButtonElement
-    && confirmFinishButton instanceof HTMLButtonElement
-    && finishDescription instanceof HTMLElement
-) {
-    finishForms.forEach((form) => {
-        form.addEventListener('submit', (event) => {
-            if (form.dataset.confirmed === 'true') {
-                return;
-            }
-
-            event.preventDefault();
-            pendingFinishForm = form;
-
-            finishDescription.textContent =
-                form.dataset.serviceDescription || 'este serviço';
-
-            finishDialog.showModal();
-        });
-    });
-
-    cancelFinishButton.addEventListener('click', () => {
-        finishDialog.close();
-    });
-
-    confirmFinishButton.addEventListener('click', () => {
-        const formToSubmit = pendingFinishForm;
-
-        if (!(formToSubmit instanceof HTMLFormElement)) {
-            return;
-        }
-
-        // Evita que o envio abra o modal novamente.
-        formToSubmit.dataset.confirmed = 'true';
-        pendingFinishForm = null;
-
-        finishDialog.close();
-        formToSubmit.requestSubmit();
-    });
-
-    // Um clique na área escura também cancela a operação.
-    finishDialog.addEventListener('click', (event) => {
-        if (event.target === finishDialog) {
-            finishDialog.close();
-        }
-    });
-
-    finishDialog.addEventListener('close', () => {
-        pendingFinishForm = null;
-    });
-}
-
-/**
- * Exibe um modal próprio antes de enviar a exclusão.
+/*
+ * Janela de confirmação única para as operações irreversíveis
+ * (finalizar, excluir, inativar). O formulário informa os textos em atributos:
+ * data-confirm (título), data-confirm-message, data-confirm-warning,
+ * data-confirm-button e data-confirm-variant ("danger" para botão vermelho).
+ * A confirmação é só uma ajuda: o servidor valida tudo de novo.
  */
-const deleteDialog = document.querySelector('#delete-dialog');
-const deleteForms = document.querySelectorAll('[data-confirm-delete]');
-const cancelDeleteButton = document.querySelector('#cancel-delete');
-const confirmDeleteButton = document.querySelector('#confirm-delete');
-const deleteDescription = document.querySelector(
-    '#delete-service-description'
-);
+const confirmDialog = document.querySelector('#confirm-dialog');
 
-let pendingDeleteForm = null;
+if (confirmDialog instanceof HTMLDialogElement) {
+    const titleElement = document.querySelector('#confirm-dialog-title');
+    const messageElement = document.querySelector('#confirm-dialog-message');
+    const warningElement = document.querySelector('#confirm-dialog-warning');
+    const cancelButton = document.querySelector('#confirm-dialog-cancel');
+    const okButton = document.querySelector('#confirm-dialog-ok');
 
-if (
-    deleteDialog instanceof HTMLDialogElement
-    && cancelDeleteButton instanceof HTMLButtonElement
-    && confirmDeleteButton instanceof HTMLButtonElement
-    && deleteDescription instanceof HTMLElement
-) {
-    deleteForms.forEach((form) => {
+    let pendingForm = null;
+
+    document.querySelectorAll('form[data-confirm]').forEach((form) => {
         form.addEventListener('submit', (event) => {
             if (form.dataset.confirmed === 'true') {
                 return;
             }
 
             event.preventDefault();
-            pendingDeleteForm = form;
+            pendingForm = form;
 
-            deleteDescription.textContent =
-                form.dataset.serviceDescription || 'este serviço';
+            titleElement.textContent = form.dataset.confirm || 'Confirmar operação?';
+            messageElement.textContent = form.dataset.confirmMessage || '';
+            warningElement.textContent = form.dataset.confirmWarning || '';
+            warningElement.hidden = !form.dataset.confirmWarning;
+            okButton.textContent = form.dataset.confirmButton || 'Confirmar';
+            okButton.className = 'button ' + (form.dataset.confirmVariant === 'danger'
+                ? 'button--danger'
+                : 'button--primary');
 
-            deleteDialog.showModal();
+            confirmDialog.showModal();
         });
     });
 
-    cancelDeleteButton.addEventListener('click', () => {
-        deleteDialog.close();
-    });
+    cancelButton.addEventListener('click', () => confirmDialog.close());
 
-    confirmDeleteButton.addEventListener('click', () => {
-        const formToSubmit = pendingDeleteForm;
+    okButton.addEventListener('click', () => {
+        const form = pendingForm;
 
-        if (!(formToSubmit instanceof HTMLFormElement)) {
+        if (!(form instanceof HTMLFormElement)) {
             return;
         }
 
-        // A marca evita que o formulário abra o modal novamente.
-        formToSubmit.dataset.confirmed = 'true';
-        pendingDeleteForm = null;
-
-        deleteDialog.close();
-        formToSubmit.requestSubmit();
+        // Evita que o envio abra a janela novamente.
+        form.dataset.confirmed = 'true';
+        pendingForm = null;
+        confirmDialog.close();
+        form.requestSubmit();
     });
 
-    // Um clique na área escura também cancela a operação.
-    deleteDialog.addEventListener('click', (event) => {
-        if (event.target === deleteDialog) {
-            deleteDialog.close();
+    // Um clique na área escura também cancela.
+    confirmDialog.addEventListener('click', (event) => {
+        if (event.target === confirmDialog) {
+            confirmDialog.close();
         }
     });
 
-    deleteDialog.addEventListener('close', () => {
-        pendingDeleteForm = null;
+    confirmDialog.addEventListener('close', () => {
+        pendingForm = null;
     });
 }
+
+/*
+ * Busca de cliente por nome no formulário de serviço (RF06):
+ * o texto digitado filtra as opções da lista de clientes ativos.
+ */
+document.querySelectorAll('[data-filter-select]').forEach((input) => {
+    const select = document.getElementById(input.dataset.filterSelect);
+
+    if (!(select instanceof HTMLSelectElement)) {
+        return;
+    }
+
+    input.addEventListener('input', () => {
+        const term = input.value.trim().toLocaleLowerCase('pt-BR');
+        let firstVisible = null;
+
+        Array.from(select.options).forEach((option) => {
+            if (option.value === '') {
+                return;
+            }
+
+            const visible = option.text.toLocaleLowerCase('pt-BR').includes(term);
+            option.hidden = !visible;
+
+            if (visible && firstVisible === null) {
+                firstVisible = option;
+            }
+        });
+
+        // Seleciona automaticamente o primeiro cliente encontrado quando nenhum está escolhido.
+        const selected = select.selectedOptions[0];
+
+        if (term !== '' && (!selected || selected.value === '' || selected.hidden) && firstVisible !== null) {
+            select.value = firstVisible.value;
+        }
+    });
+});
