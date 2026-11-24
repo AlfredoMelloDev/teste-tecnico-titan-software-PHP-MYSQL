@@ -4,501 +4,452 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use Throwable;
-use App\Core\Csrf;
 use App\Core\Auth;
-use App\Models\Service;
 use App\Core\Controller;
+use App\Core\Database;
+use App\Core\Flash;
+use App\Core\Logger;
+use App\Models\Client;
+use App\Models\Service;
+use App\Models\User;
 use App\Services\MailService;
-use App\Services\CommissionCalculator;
+use App\Services\ServiceFinalizer;
+use DomainException;
+use Throwable;
 
 final class ServiceController extends Controller
 {
     private Service $services;
-    private CommissionCalculator $commissionCalculator;
-    private MailService $mailService;
+    private Client $clients;
+    private User $users;
 
     public function __construct()
     {
-        // O Model concentra todas as operações da tabela de serviços.
         $this->services = new Service();
-        $this->commissionCalculator = new CommissionCalculator();
-        $this->mailService = new MailService();
+        $this->clients = new Client();
+        $this->users = new User();
     }
 
-    public function showCreate(): void
+    /**
+     * UC11 - Pesquisar serviços: filtros combináveis e paginação de 25 registros.
+     */
+    public function index(): void
     {
-        // Somente usuários autenticados podem cadastrar serviços.
         Auth::requireLogin();
 
-        // Recupera a mensagem e os campos da tentativa anterior.
-        $error = $_SESSION['service_form_error'] ?? null;
-        $old = $_SESSION['service_form_old'] ?? [];
+        $isManager = Auth::isManager();
+        $error = null;
 
-        // Esses valores devem permanecer disponíveis por apenas uma requisição.
-        unset(
-            $_SESSION['service_form_error'],
-            $_SESSION['service_form_old']
+        $status = trim($_GET['status'] ?? '');
+        [$startDate, $endDate, $periodError] = $this->parsePeriod(
+            trim($_GET['start_date'] ?? ''),
+            trim($_GET['end_date'] ?? '')
         );
 
-        $this->view('services/create', [
-            'title' => 'Cadastrar serviço',
-            'error' => $error,
-            'old' => $old,
+        if ($periodError !== null) {
+            // O filtro de período não é aplicado e o usuário recebe orientação (FA1).
+            $error = $periodError;
+        }
+
+        $filters = [
+            'description' => trim($_GET['description'] ?? ''),
+            'client' => trim($_GET['client'] ?? ''),
+            // O filtro por responsável só é oferecido ao gestor.
+            'user_id' => $isManager ? $this->intParam($_GET, 'user_id') : null,
+            'status' => in_array($status, ['pendente', 'finalizado'], true) ? $status : '',
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ];
+
+        // O funcionário vê somente os serviços sob sua responsabilidade (RN18).
+        $result = $this->services->search(
+            $filters,
+            $isManager ? null : Auth::id(),
+            $this->currentPage(),
+            self::PER_PAGE
+        );
+
+        $flash = Flash::pullMessages();
+
+        if ($error !== null) {
+            $flash['error'] = $error;
+        }
+
+        $this->view('services/index', [
+            'title' => 'Serviços',
+            'activeMenu' => 'services',
+            'flash' => $flash,
+            'filters' => $filters,
+            'query' => array_filter([
+                'description' => $filters['description'],
+                'client' => $filters['client'],
+                'user_id' => $filters['user_id'],
+                'status' => $filters['status'],
+                'start_date' => $_GET['start_date'] ?? '',
+                'end_date' => $_GET['end_date'] ?? '',
+            ]),
+            'result' => $result,
+            'responsibles' => $isManager ? $this->users->listAll() : [],
+            'isManager' => $isManager,
+            'currentUserId' => (int) Auth::id(),
         ]);
     }
 
-    public function store(): void
+    // UC07 - formulário de registro de serviço.
+    public function showCreate(): void
     {
         Auth::requireLogin();
 
-        // Validação do token CSRF
-        if (!Csrf::validate($_POST['_token'] ?? null)) {
-            $_SESSION['dashboard_error'] =
-                'A solicitação expirou. Atualize a página e tente novamente.';
+        $this->view('services/form', [
+            'title' => 'Novo serviço',
+            'activeMenu' => 'services-create',
+            'service' => null,
+            'old' => Flash::pullOld(),
+            'clients' => $this->clients->listActive(),
+            'responsibles' => Auth::isManager() ? $this->users->listActive() : [],
+            'isManager' => Auth::isManager(),
+        ]);
+    }
 
-            header('Location: /dashboard');
-            exit;
+    // UC07 - registra o serviço como pendente.
+    public function store(): void
+    {
+        Auth::requireLogin();
+        $this->requireCsrf('/services/create');
+
+        $data = $this->readForm();
+        $errors = $this->validate($data);
+
+        $client = $data['client_id'] !== null ? $this->clients->findById($data['client_id']) : null;
+
+        if ($client === null || (int) $client['active'] !== 1) {
+            $errors[] = 'Selecione um cliente ativo.';
         }
 
-        // Remove espaços desnecessários antes de validar os campos.
-        $description = trim($_POST['description'] ?? '');
-        $priceInput = trim($_POST['price'] ?? '');
+        // O funcionário é sempre o responsável; só o gestor escolhe outro (RN07).
+        $responsibleId = Auth::isManager() ? $data['user_id'] : (int) Auth::id();
+        $responsible = $responsibleId !== null ? $this->users->findActiveById($responsibleId) : null;
 
-        // Converte o valor informado para o formato utilizado pelo MySQL.
-        $price = $this->normalizePrice($priceInput);
+        if ($responsible === null) {
+            $errors[] = 'Selecione um responsável ativo.';
+        }
 
-        if (
-            $description === ''
-            || strlen($description) > 255
-            || $price === null
-        ) {
-            $this->redirectWithError(
-                'Informe uma descrição e um valor válido.',
-                $description,
-                $priceInput
-            );
+        if ($errors !== []) {
+            $this->backWithErrors('/services/create', $errors, $data);
         }
 
         try {
-            // O serviço sempre pertence ao usuário que está logado.
-            $this->services->create(
-                $description,
-                $price,
-                (int) Auth::id()
+            $serviceId = $this->services->create(
+                $data['description'],
+                $data['price'],
+                $responsibleId,
+                $data['client_id']
             );
 
-            $_SESSION['dashboard_success'] =
-                'Serviço cadastrado com sucesso.';
+            Flash::success("Serviço #{$serviceId} cadastrado como pendente.");
         } catch (Throwable $exception) {
-
-            /*
-             * O usuário recebe uma mensagem simples, enquanto o erro completo     --------
-             * fica registrado para ajudar na identificação do problema.
-             */
-
-            error_log(
-                '[' . date('Y-m-d H:i:s') . '] '
-                    . $exception->getMessage()
-                    . PHP_EOL,
-                3,
-                dirname(__DIR__, 2) . '/storage/logs/app.log'
-            );
-
-            $_SESSION['dashboard_error'] =
-                'Não foi possível cadastrar o serviço.';
+            Logger::error('Falha ao cadastrar serviço', $exception);
+            Flash::error('Não foi possível cadastrar o serviço. Tente novamente.');
+            Flash::setOld($data['raw']);
+            $this->redirect('/services/create');
         }
 
-        // O redirecionamento evita o reenvio do formulário ao atualizar a página.
-        header('Location: /dashboard');
-        exit;
+        $this->redirect('/services');
     }
 
+    // UC08 - formulário de edição de serviço pendente.
     public function showEdit(): void
     {
         Auth::requireLogin();
 
-        $serviceId = filter_var(
-            $_GET['id'] ?? null,
-            FILTER_VALIDATE_INT
-        );
+        $serviceId = $this->intParam($_GET, 'id');
+        $service = $serviceId !== null ? $this->services->findById($serviceId) : null;
 
-        if ($serviceId === false || $serviceId < 1) {
-            $_SESSION['dashboard_error'] =
-                'O serviço informado é inválido.';
+        $this->ensureCanChange($service);
 
-            header('Location: /dashboard');
-            exit;
+        // O cliente atual continua na lista mesmo que tenha sido inativado (RN05).
+        $clients = $this->clients->listActive();
+
+        if ((int) $service['client_active'] !== 1) {
+            array_unshift($clients, [
+                'id_client' => $service['client_id'],
+                'name' => $service['client_name'] . ' (inativo - cliente atual)',
+            ]);
         }
 
-        $service = $this->services->findById($serviceId);
+        // Se o responsável atual foi inativado, ele continua visível como opção atual.
+        $responsibles = Auth::isManager() ? $this->users->listActive() : [];
 
-        if ($service === null) {
-            $_SESSION['dashboard_error'] =
-                'O serviço não foi encontrado.';
-
-            header('Location: /dashboard');
-            exit;
+        if (Auth::isManager() && !in_array((int) $service['user_id'], array_map('intval', array_column($responsibles, 'id_user')), true)) {
+            array_unshift($responsibles, [
+                'id_user' => $service['user_id'],
+                'name' => $service['user_name'] . ' (inativo - responsável atual)',
+                'role' => 'funcionario',
+            ]);
         }
 
-        if ($service['finished_at'] !== null) {
-            $_SESSION['dashboard_error'] =
-                'Um serviço finalizado não pode ser alterado.';
-
-            header('Location: /dashboard');
-            exit;
-        }
-
-        $error = $_SESSION['service_edit_error'] ?? null;
-        $old = $_SESSION['service_edit_old'] ?? [];
-
-        unset(
-            $_SESSION['service_edit_error'],
-            $_SESSION['service_edit_old']
-        );
-
-        $this->view('services/edit', [
-            'title' => 'Editar serviço',
+        $this->view('services/form', [
+            'title' => 'Editar serviço #' . $service['id_service'],
+            'activeMenu' => 'services',
             'service' => $service,
-            'error' => $error,
-            'old' => $old,
+            'old' => Flash::pullOld(),
+            'clients' => $clients,
+            'responsibles' => $responsibles,
+            'isManager' => Auth::isManager(),
         ]);
     }
 
+    // UC08 - grava a edição somente se o serviço continuar pendente.
     public function update(): void
     {
         Auth::requireLogin();
 
-        // Validação do token CSRF
-        if (!Csrf::validate($_POST['_token'] ?? null)) {
-            $_SESSION['dashboard_error'] =
-                'A solicitação expirou. Atualize a página e tente novamente.';
+        $serviceId = $this->intParam($_POST, 'service_id');
+        $back = '/services/edit?id=' . (int) $serviceId;
+        $this->requireCsrf($back);
 
-            header('Location: /dashboard');
-            exit;
+        $data = $this->readForm();
+        $errors = $this->validate($data);
+
+        if ($errors !== []) {
+            $this->backWithErrors($back, $errors, $data);
         }
 
-        $serviceId = filter_var(
-            $_POST['service_id'] ?? null,
-            FILTER_VALIDATE_INT
-        );
+        $connection = Database::connection();
 
-        $description = trim($_POST['description'] ?? '');
-        $priceInput = trim($_POST['price'] ?? '');
-        $price = $this->normalizePrice($priceInput);
+        try {
+            $connection->beginTransaction();
 
-        if (
-            $serviceId === false
-            || $serviceId < 1
-            || $description === ''
-            || strlen($description) > 255
-            || $price === null
-        ) {
-            $this->redirectEditWithError(
-                (int) $serviceId,
-                'Informe uma descrição e um valor válido.',
-                $description,
-                $priceInput
-            );
+            // Bloqueia a linha: uma finalização simultânea espera esta edição terminar.
+            $service = $serviceId !== null ? $this->services->findByIdForUpdate($serviceId) : null;
+            $this->ensureCanChange($service, inTransaction: true);
+
+            // Trocar o cliente exige um cliente ativo; manter o atual é sempre permitido (RN05).
+            $clientId = $data['client_id'] ?? (int) $service['client_id'];
+
+            if ($clientId !== (int) $service['client_id']) {
+                $client = $this->clients->findById($clientId);
+
+                if ($client === null || (int) $client['active'] !== 1) {
+                    $connection->rollBack();
+                    $this->backWithErrors($back, ['Escolha um cliente ativo. O cliente atual foi mantido.'], $data);
+                }
+            }
+
+            // Somente o gestor altera o responsável, e apenas para um usuário ativo (RN07).
+            $userId = (int) $service['user_id'];
+
+            if (Auth::isManager() && $data['user_id'] !== null && $data['user_id'] !== $userId) {
+                if ($this->users->findActiveById($data['user_id']) === null) {
+                    $connection->rollBack();
+                    $this->backWithErrors($back, ['Selecione um responsável ativo.'], $data);
+                }
+
+                $userId = $data['user_id'];
+            }
+
+            $this->services->updatePending($serviceId, $data['description'], $data['price'], $clientId, $userId);
+            $connection->commit();
+
+            Flash::success("Serviço #{$serviceId} atualizado.");
+        } catch (Throwable $exception) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+
+            Logger::error("Falha ao atualizar o serviço {$serviceId}", $exception);
+            Flash::error('Não foi possível atualizar o serviço. Tente novamente.');
         }
 
-        $service = $this->services->findById($serviceId);
+        $this->redirect('/services');
+    }
 
-        if ($service === null || $service['finished_at'] !== null) {
-            $_SESSION['dashboard_error'] =
-                'O serviço não existe ou já foi finalizado.';
+    // UC09 - somente o gestor exclui, e somente serviço pendente.
+    public function delete(): void
+    {
+        Auth::requireLogin();
+        $this->requireCsrf('/services');
 
-            header('Location: /dashboard');
-            exit;
+        if (!Auth::isManager()) {
+            Flash::error('Somente o gestor pode excluir serviços.');
+            $this->redirect('/services');
+        }
+
+        $serviceId = $this->intParam($_POST, 'service_id');
+
+        try {
+            if ($serviceId !== null && $this->services->deletePending($serviceId)) {
+                Flash::success("Serviço #{$serviceId} excluído.");
+            } else {
+                Flash::error('O serviço não foi encontrado ou já está finalizado. Serviços finalizados não podem ser excluídos.');
+            }
+        } catch (Throwable $exception) {
+            Logger::error("Falha ao excluir o serviço {$serviceId}", $exception);
+            Flash::error('Não foi possível excluir o serviço. Tente novamente.');
+        }
+
+        $this->redirect('/services');
+    }
+
+    // UC10 - finaliza o serviço e calcula a comissão em uma transação.
+    public function finish(): void
+    {
+        Auth::requireLogin();
+        $this->requireCsrf('/services');
+
+        $serviceId = $this->intParam($_POST, 'service_id');
+
+        if ($serviceId === null) {
+            Flash::error('Serviço inválido.');
+            $this->redirect('/services');
         }
 
         try {
-            $this->services->update(
+            $result = (new ServiceFinalizer())->finalize($serviceId, [
+                'id' => (int) Auth::id(),
+                'role' => Auth::user()['role'],
+            ]);
+
+            Flash::success(sprintf(
+                'Serviço #%d finalizado. Comissão de %s%% sobre o valor: %s.',
                 $serviceId,
-                $description,
-                $price
-            );
+                number_format((float) $result['rate'], 0),
+                money($result['commission'])
+            ));
 
-            $_SESSION['dashboard_success'] =
-                'Serviço atualizado com sucesso.';
+            $this->notifyResponsible($serviceId);
+        } catch (DomainException $exception) {
+            // Recusas previstas (sem permissão, já finalizado): mensagem direta ao usuário.
+            Flash::error($exception->getMessage());
         } catch (Throwable $exception) {
-            error_log(
-                '[' . date('Y-m-d H:i:s') . '] '
-                    . $exception->getMessage()
-                    . PHP_EOL,
-                3,
-                dirname(__DIR__, 2) . '/storage/logs/app.log'
-            );
-
-            $_SESSION['dashboard_error'] =
-                'Não foi possível atualizar o serviço.';
+            Logger::error("Falha ao finalizar o serviço {$serviceId}", $exception);
+            Flash::error('Não foi possível finalizar o serviço. Ele continua pendente.');
         }
 
-        header('Location: /dashboard');
-        exit;
+        $this->redirect('/services');
     }
 
-    private function redirectEditWithError(
-        int $serviceId,
-        string $message,
-        string $description,
-        string $price
-    ): never {
-        $_SESSION['service_edit_error'] = $message;
-        $_SESSION['service_edit_old'] = [
-            'description' => $description,
-            'price' => $price,
+    // Avisa o responsável por e-mail. Uma falha no envio não desfaz a finalização.
+    private function notifyResponsible(int $serviceId): void
+    {
+        try {
+            $service = $this->services->findById($serviceId);
+
+            if ($service === null) {
+                return;
+            }
+
+            $message = sprintf(
+                "Olá, %s.\n\nO serviço #%d foi finalizado.\nCliente: %s\nDescrição: %s\nValor: %s\nComissão: %s\nData da finalização: %s",
+                $service['user_name'],
+                $serviceId,
+                $service['client_name'],
+                $service['description'],
+                money($service['price']),
+                money($service['commission_user']),
+                datetime_br($service['finished_at'])
+            );
+
+            (new MailService())->send($service['user_email'], 'Serviço finalizado', $message);
+        } catch (Throwable $exception) {
+            Logger::error("Falha ao notificar a finalização do serviço {$serviceId}", $exception);
+        }
+    }
+
+    /**
+     * Confere existência, permissão (gestor ou responsável) e situação pendente.
+     * Usado tanto ao abrir a edição quanto ao gravar (inclusive por URL direta).
+     */
+    private function ensureCanChange(?array $service, bool $inTransaction = false): void
+    {
+        $message = null;
+
+        if ($service === null) {
+            $message = 'O serviço informado não foi encontrado.';
+        } elseif (!Auth::isManager() && (int) $service['user_id'] !== Auth::id()) {
+            $message = 'Você não tem permissão para alterar este serviço.';
+        } elseif ($service['finished_at'] !== null) {
+            $message = 'Serviços finalizados não podem ser alterados.';
+        }
+
+        if ($message === null) {
+            return;
+        }
+
+        if ($inTransaction && Database::connection()->inTransaction()) {
+            Database::connection()->rollBack();
+        }
+
+        Flash::error($message);
+        $this->redirect('/services');
+    }
+
+    private function readForm(): array
+    {
+        $raw = [
+            'description' => trim($_POST['description'] ?? ''),
+            'price' => trim($_POST['price'] ?? ''),
+            'client_id' => trim((string) ($_POST['client_id'] ?? '')),
+            'user_id' => trim((string) ($_POST['user_id'] ?? '')),
         ];
 
-        header('Location: /services/edit?id=' . $serviceId);
-        exit;
+        return [
+            'raw' => $raw,
+            'description' => $raw['description'],
+            'price' => $this->normalizePrice($raw['price']),
+            'client_id' => $this->intParam($_POST, 'client_id'),
+            'user_id' => $this->intParam($_POST, 'user_id'),
+        ];
     }
 
+    private function validate(array $data): array
+    {
+        $errors = [];
+        $length = mb_strlen($data['description']);
+
+        if ($length < 1 || $length > 255) {
+            $errors[] = 'Informe a descrição (até 255 caracteres).';
+        }
+
+        if ($data['price'] === null) {
+            $errors[] = 'Informe um valor maior que zero, com até duas casas decimais (máximo R$ 999.999.999,99).';
+        }
+
+        return $errors;
+    }
+
+    private function backWithErrors(string $location, array $errors, array $data): never
+    {
+        Flash::error(implode(' ', $errors));
+        Flash::setOld($data['raw']);
+        $this->redirect($location);
+    }
+
+    /**
+     * Converte o valor digitado (vírgula ou ponto) para o formato do DECIMAL(11,2).
+     * Aceita até nove dígitos inteiros e duas casas decimais; rejeita zero (RN06).
+     */
     private function normalizePrice(string $price): ?string
     {
-        // Permite que o usuário use vírgula ou ponto como separador decimal.
-        $price = str_replace(',', '.', trim($price));
+        // Aceita "1.234,56" removendo o separador de milhar quando há vírgula decimal.
+        if (str_contains($price, ',')) {
+            $price = str_replace(['.', ','], ['', '.'], $price);
+        }
 
-        /*
-         * Aceita até nove dígitos inteiros e duas casas decimais.
-         * Letras, números negativos e separadores inválidos são rejeitados.
-         */
         if (!preg_match('/^\d{1,9}(?:\.\d{1,2})?$/', $price)) {
             return null;
         }
 
-        // Separa a parte inteira e a parte decimal para padronizar o valor.
-        [$integer, $decimal] = array_pad(
-            explode('.', $price, 2),
-            2,
-            ''
-        );
+        [$integer, $decimal] = array_pad(explode('.', $price, 2), 2, '');
 
-        // Remove zeros à esquerda, preservando o zero quando necessário.
         $integer = ltrim($integer, '0');
         $integer = $integer === '' ? '0' : $integer;
-
-        // O banco utiliza sempre duas casas decimais para valores monetários.
         $decimal = str_pad($decimal, 2, '0');
 
-        // Um serviço deve possuir valor maior que zero.
         if ($integer === '0' && $decimal === '00') {
             return null;
         }
 
         return $integer . '.' . $decimal;
-    }
-
-    private function redirectWithError(
-        string $message,
-        string $description,
-        string $price
-    ): never {
-        // Guarda os dados válidos para preencher novamente o formulário.
-        $_SESSION['service_form_error'] = $message;
-        $_SESSION['service_form_old'] = [
-            'description' => $description,
-            'price' => $price,
-        ];
-
-        header('Location: /services/create');
-        exit;
-    }
-
-    /**
-     * Processa a exclusão enviada pelo dashboard.
-     */
-    public function delete(): void
-    {
-        Auth::requireLogin();
-
-        // O token CSRF é verificado antes de qualquer alteração de dados.
-        if (!Csrf::validate($_POST['_token'] ?? null)) {
-            $_SESSION['dashboard_error'] =
-                'A solicitação expirou. Atualize a página e tente novamente.';
-
-            header('Location: /dashboard');
-            exit;
-        }
-
-        $serviceId = filter_var(
-            $_POST['service_id'] ?? null,
-            FILTER_VALIDATE_INT
-        );
-
-        if ($serviceId === false || $serviceId === null || $serviceId < 1) {
-            $_SESSION['dashboard_error'] = 'Serviço inválido.';
-
-            header('Location: /dashboard');
-            exit;
-        }
-
-        try {
-            $deleted = $this->services->delete($serviceId);
-
-            if (!$deleted) {
-                $_SESSION['dashboard_error'] =
-                    'O serviço informado não foi encontrado.';
-            } else {
-                $_SESSION['dashboard_success'] =
-                    'Serviço excluído com sucesso.';
-            }
-        } catch (Throwable $exception) {
-            // O detalhe técnico fica no log, sem ser apresentado ao usuário.
-            error_log(
-                sprintf(
-                    "[%s] Falha ao excluir o serviço %d: %s%s",
-                    date('Y-m-d H:i:s'),
-                    $serviceId,
-                    $exception->getMessage(),
-                    PHP_EOL
-                ),
-                3,
-                dirname(__DIR__, 2) . '/storage/logs/app.log'
-            );
-
-            $_SESSION['dashboard_error'] =
-                'Não foi possível excluir o serviço. Tente novamente.';
-        }
-
-        header('Location: /dashboard');
-        exit;
-    }
-
-    /**
-     * Finaliza o serviço e calcula a comissão do funcionário responsável.
-     */
-    public function finish(): void
-    {
-        Auth::requireLogin();
-
-        // A validação do token CSRF protege contra ataques de falsificação de requisições.
-        if (!Csrf::validate($_POST['_token'] ?? null)) {
-            $_SESSION['dashboard_error'] =
-                'A solicitação expirou. Atualize a página e tente novamente.';
-
-            header('Location: /dashboard');
-            exit;
-        }
-
-        $serviceId = filter_var(
-            $_POST['service_id'] ?? null,
-            FILTER_VALIDATE_INT
-        );
-
-        if ($serviceId === false || $serviceId === null || $serviceId < 1) {
-            $_SESSION['dashboard_error'] = 'Serviço inválido.';
-
-            header('Location: /dashboard');
-            exit;
-        }
-
-        try {
-            $service = $this->services->findById($serviceId);
-
-            if ($service === null) {
-                $_SESSION['dashboard_error'] =
-                    'O serviço informado não foi encontrado.';
-
-                header('Location: /dashboard');
-                exit;
-            }
-
-            if ($service['finished_at'] !== null) {
-                $_SESSION['dashboard_error'] =
-                    'Este serviço já foi finalizado.';
-
-                header('Location: /dashboard');
-                exit;
-            }
-
-            $commission = $this->commissionCalculator->calculate(
-                (float) $service['price']
-            );
-
-            $finished = $this->services->finish(
-                $serviceId,
-                $commission
-            );
-
-            if (!$finished) {
-                $_SESSION['dashboard_error'] =
-                    'Não foi possível finalizar o serviço.';
-            } else {
-                $formattedPrice = number_format(
-                    (float) $service['price'],
-                    2,
-                    ',',
-                    '.'
-                );
-
-                $formattedCommission = number_format(
-                    $commission,
-                    2,
-                    ',',
-                    '.'
-                );
-
-                $message = sprintf(
-                    "Olá, %s.%s%s"
-                        . "O serviço #%d foi finalizado.%s"
-                        . "Descrição: %s%s"
-                        . "Valor: R$ %s%s"
-                        . "Comissão: R$ %s%s"
-                        . "Data da finalização: %s",
-                    $service['user_name'],
-                    PHP_EOL,
-                    PHP_EOL,
-                    $serviceId,
-                    PHP_EOL,
-                    $service['description'],
-                    PHP_EOL,
-                    $formattedPrice,
-                    PHP_EOL,
-                    $formattedCommission,
-                    PHP_EOL,
-                    date('d/m/Y H:i')
-                );
-
-                $emailSent = $this->mailService->send(
-                    $service['user_email'],
-                    'Serviço finalizado',
-                    $message
-                );
-
-                $_SESSION['dashboard_success'] =
-                    'Serviço finalizado com sucesso. Comissão: R$ '
-                    . $formattedCommission;
-
-                /*
-             * O serviço permanece finalizado mesmo se o computador local
-             * não estiver configurado para entregar mensagens de e-mail.
-             */
-                if (!$emailSent) {
-                    $_SESSION['dashboard_success'] .=
-                        ' O e-mail não foi enviado neste ambiente por ser um teste técnico, mas a tentativa '
-                        . 'foi registrada para conferência.';
-                }
-            }
-        } catch (\Throwable $exception) {
-            // O erro completo fica no log para não expor detalhes internos na tela.
-            error_log(
-                sprintf(
-                    "[%s] Falha ao finalizar o serviço %d: %s%s",
-                    date('Y-m-d H:i:s'),
-                    $serviceId,
-                    $exception->getMessage(),
-                    PHP_EOL
-                ),
-                3,
-                dirname(__DIR__, 2) . '/storage/logs/app.log'
-            );
-
-            $_SESSION['dashboard_error'] =
-                'Não foi possível finalizar o serviço. Tente novamente.';
-        }
-
-        header('Location: /dashboard');
-        exit;
     }
 }

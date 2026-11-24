@@ -4,337 +4,289 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Core\Database;
-use PDO;
-
-final class Service
+final class Service extends Model
 {
-    private PDO $connection;
+    // Colunas comuns às consultas, já com o responsável e o cliente.
+    private const SELECT = '
+        SELECT
+            service.id_service,
+            service.description,
+            service.price,
+            service.created_at,
+            service.finished_at,
+            service.commission_user,
+            service.commission_rate,
+            service.user_id,
+            service.client_id,
+            service.finished_by,
+            user.name AS user_name,
+            user.email AS user_email,
+            client.name AS client_name,
+            client.active AS client_active
+        FROM `service`
+        INNER JOIN `user` ON user.id_user = service.user_id
+        INNER JOIN `client` ON client.id_client = service.client_id
+    ';
 
-    public function __construct()
+    // Todo serviço novo começa pendente: finished_at e comissão vazios (RN08).
+    public function create(string $description, string $price, int $userId, int $clientId): int
     {
-        // Reutiliza a conexão PDO criada pela classe Database.
-        $this->connection = Database::connection();
-    }
-
-    public function create(
-        string $description,
-        string $price,
-        int $userId
-    ): int {
-        $sql = '
-            INSERT INTO `service` (
-                description,
-                price,
-                user_id_user
-            ) VALUES (
-                :description,
-                :price,
-                :user_id
-            )
-        ';
-
-        /*
-         * finished_at e commission_user começam vazios.
-         * Por isso, todo serviço novo é considerado pendente.
-         */
-        $statement = $this->connection->prepare($sql);
+        $statement = $this->connection->prepare(
+            'INSERT INTO `service` (description, price, user_id, client_id)
+             VALUES (:description, :price, :user_id, :client_id)'
+        );
         $statement->execute([
             'description' => $description,
             'price' => $price,
             'user_id' => $userId,
+            'client_id' => $clientId,
         ]);
 
         return (int) $this->connection->lastInsertId();
     }
 
-    /**
-     * Busca um serviço e os dados do funcionário responsável.
-     */
     public function findById(int $serviceId): ?array
     {
-        $sql = '
-        SELECT
-            service.id_service,
-            service.description,
-            service.price,
-            service.created_at,
-            service.update_at,
-            service.finished_at,
-            service.commission_user,
-            service.user_id_user,
-            user.name AS user_name,
-            user.email AS user_email
-        FROM `service`
-        INNER JOIN `user`
-            ON user.id_user = service.user_id_user
-        WHERE service.id_service = :service_id
-        LIMIT 1
-    ';
+        $statement = $this->connection->prepare(self::SELECT . ' WHERE service.id_service = :id LIMIT 1');
+        $statement->execute(['id' => $serviceId]);
 
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            'service_id' => $serviceId,
-        ]);
-
-        $service = $statement->fetch();
-
-        return $service !== false ? $service : null;
+        return $statement->fetch() ?: null;
     }
 
-    // O método retorna todos os serviços cadastrados, com a possibilidade de aplicar filtros.
     /**
-     * @param array{
-     *     description?: string,
-     *     status?: string,
-     *     user?: string,
-     *     start_date?: string,
-     *     end_date?: string
-     * } $filters
+     * Lê o serviço e bloqueia a linha até o fim da transação (SELECT ... FOR UPDATE).
+     * Deve ser chamado dentro de uma transação aberta.
      */
-
-    public function findAllWithUser(array $filters = []): array
+    public function findByIdForUpdate(int $serviceId): ?array
     {
-        $sql = '
-        SELECT
-            service.id_service,
-            service.description,
-            service.price,
-            service.created_at,
-            service.finished_at,
-            service.commission_user,
-            user.name AS user_name,
-            CASE
-                WHEN service.finished_at IS NULL
-                    THEN "Pendente"
-                ELSE "Finalizado"
-            END AS status
-        FROM `service`
-        INNER JOIN `user`
-            ON user.id_user = service.user_id_user
-        WHERE 1 = 1
-    ';
+        $statement = $this->connection->prepare(
+            'SELECT id_service, description, price, finished_at, user_id, client_id
+             FROM `service` WHERE id_service = :id FOR UPDATE'
+        );
+        $statement->execute(['id' => $serviceId]);
 
+        return $statement->fetch() ?: null;
+    }
+
+    // A condição finished_at IS NULL impede alterar um serviço finalizado (RN09).
+    public function updatePending(
+        int $serviceId,
+        string $description,
+        string $price,
+        int $clientId,
+        int $userId
+    ): void {
+        $statement = $this->connection->prepare(
+            'UPDATE `service`
+             SET description = :description, price = :price, client_id = :client_id, user_id = :user_id
+             WHERE id_service = :id AND finished_at IS NULL'
+        );
+        $statement->execute([
+            'id' => $serviceId,
+            'description' => $description,
+            'price' => $price,
+            'client_id' => $clientId,
+            'user_id' => $userId,
+        ]);
+    }
+
+    // Exclui somente se o serviço ainda estiver pendente (RN10).
+    public function deletePending(int $serviceId): bool
+    {
+        $statement = $this->connection->prepare(
+            'DELETE FROM `service` WHERE id_service = :id AND finished_at IS NULL'
+        );
+        $statement->execute(['id' => $serviceId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    // Grava data, comissão, percentual e autor da finalização em um único UPDATE (RN11, RN13).
+    public function markFinished(int $serviceId, string $commission, string $rate, int $finishedBy): bool
+    {
+        $statement = $this->connection->prepare(
+            'UPDATE `service`
+             SET finished_at = NOW(), commission_user = :commission,
+                 commission_rate = :rate, finished_by = :finished_by
+             WHERE id_service = :id AND finished_at IS NULL'
+        );
+        $statement->execute([
+            'id' => $serviceId,
+            'commission' => $commission,
+            'rate' => $rate,
+            'finished_by' => $finishedBy,
+        ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /**
+     * Listagem com filtros combináveis (RF12, RF13). Quando $scopeUserId é
+     * informado (funcionário), o resultado fica restrito aos serviços dele (RN18).
+     *
+     * @param array{description: string, client: string, user_id: int|null,
+     *              status: string, start_date: string, end_date: string} $filters
+     */
+    public function search(array $filters, ?int $scopeUserId, int $page, int $perPage): array
+    {
+        [$where, $parameters] = $this->listConditions($filters, $scopeUserId);
+
+        return $this->paginateQuery(
+            self::SELECT . $where . ' ORDER BY service.created_at DESC, service.id_service DESC',
+            'SELECT COUNT(*) FROM `service`
+             INNER JOIN `user` ON user.id_user = service.user_id
+             INNER JOIN `client` ON client.id_client = service.client_id' . $where,
+            $parameters,
+            $page,
+            $perPage
+        );
+    }
+
+    private function listConditions(array $filters, ?int $scopeUserId): array
+    {
+        $conditions = [];
         $parameters = [];
 
-        // A descrição pode ser localizada mesmo quando digitada parcialmente.
-        if (($filters['description'] ?? '') !== '') {
-            $sql .= '
-            AND service.description LIKE :description
-        ';
-
-            $parameters['description'] =
-                '%' . $filters['description'] . '%';
+        if ($scopeUserId !== null) {
+            $conditions[] = 'service.user_id = :scope_user';
+            $parameters['scope_user'] = $scopeUserId;
         }
 
-        // O nome também utiliza busca parcial para facilitar o filtro.
-        if (($filters['user'] ?? '') !== '') {
-            $sql .= '
-            AND user.name LIKE :user_name
-        ';
-
-            $parameters['user_name'] =
-                '%' . $filters['user'] . '%';
+        if ($filters['description'] !== '') {
+            $conditions[] = 'service.description LIKE :description';
+            $parameters['description'] = '%' . $filters['description'] . '%';
         }
 
-        /*
-     * O status não existe como coluna no banco.
-     * Ele é determinado pela presença da data de finalização.
+        if ($filters['client'] !== '') {
+            $conditions[] = 'client.name LIKE :client';
+            $parameters['client'] = '%' . $filters['client'] . '%';
+        }
+
+        if ($filters['user_id'] !== null) {
+            $conditions[] = 'service.user_id = :user_id';
+            $parameters['user_id'] = $filters['user_id'];
+        }
+
+        // A situação não é coluna: é derivada de finished_at.
+        if ($filters['status'] === 'pendente') {
+            $conditions[] = 'service.finished_at IS NULL';
+        } elseif ($filters['status'] === 'finalizado') {
+            $conditions[] = 'service.finished_at IS NOT NULL';
+        }
+
+        // O período usa a data de cadastro, com os dias inicial e final completos (RN14).
+        if ($filters['start_date'] !== '') {
+            $conditions[] = 'service.created_at >= :start_date';
+            $parameters['start_date'] = $filters['start_date'] . ' 00:00:00';
+        }
+
+        if ($filters['end_date'] !== '') {
+            $conditions[] = 'service.created_at < DATE_ADD(:end_date, INTERVAL 1 DAY)';
+            $parameters['end_date'] = $filters['end_date'];
+        }
+
+        $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
+
+        return [$where, $parameters];
+    }
+
+    /**
+     * Indicadores do dashboard (RF14). Não recebem os filtros da listagem (RN16).
      */
-        if (($filters['status'] ?? '') === 'Pendente') {
-            $sql .= '
-            AND service.finished_at IS NULL
-        ';
+    public function summary(?int $scopeUserId): array
+    {
+        $sql = 'SELECT
+                    COUNT(*) AS total_services,
+                    COALESCE(SUM(finished_at IS NULL), 0) AS pending_services,
+                    COALESCE(SUM(finished_at IS NOT NULL), 0) AS finished_services,
+                    COALESCE(SUM(price), 0) AS total_value,
+                    COALESCE(SUM(commission_user), 0) AS total_commission
+                FROM `service`';
+        $parameters = [];
+
+        if ($scopeUserId !== null) {
+            $sql .= ' WHERE user_id = :user_id';
+            $parameters['user_id'] = $scopeUserId;
         }
 
-        if (($filters['status'] ?? '') === 'Finalizado') {
-            $sql .= '
-            AND service.finished_at IS NOT NULL
-        ';
-        }
-
-        if (($filters['start_date'] ?? '') !== '') {
-            $sql .= '
-            AND service.created_at >= :start_date
-        ';
-
-            $parameters['start_date'] =
-                $filters['start_date'] . ' 00:00:00';
-        }
-
-        if (($filters['end_date'] ?? '') !== '') {
-            $sql .= '
-            AND service.created_at <= :end_date
-        ';
-
-            $parameters['end_date'] =
-                $filters['end_date'] . ' 23:59:59';
-        }
-
-        $sql .= '
-        ORDER BY
-            service.created_at DESC,
-            service.id_service DESC
-    ';
-
-        // Todos os valores recebidos pelo filtro continuam parametrizados.
         $statement = $this->connection->prepare($sql);
+        $statement->execute($parameters);
+        $row = $statement->fetch() ?: [];
+
+        return [
+            'total_services' => (int) ($row['total_services'] ?? 0),
+            'pending_services' => (int) ($row['pending_services'] ?? 0),
+            'finished_services' => (int) ($row['finished_services'] ?? 0),
+            'total_value' => (string) ($row['total_value'] ?? '0'),
+            'total_commission' => (string) ($row['total_commission'] ?? '0'),
+        ];
+    }
+
+    // Até cinco pendências mais recentes (RF14).
+    public function latestPending(?int $scopeUserId): array
+    {
+        $sql = self::SELECT . ' WHERE service.finished_at IS NULL';
+        $parameters = [];
+
+        if ($scopeUserId !== null) {
+            $sql .= ' AND service.user_id = :user_id';
+            $parameters['user_id'] = $scopeUserId;
+        }
+
+        $statement = $this->connection->prepare(
+            $sql . ' ORDER BY service.created_at DESC, service.id_service DESC LIMIT 5'
+        );
         $statement->execute($parameters);
 
         return $statement->fetchAll();
     }
 
-    public function totalValueByUser(int $userId): string
-    {
-        $sql = '
-            SELECT COALESCE(SUM(price), 0.00)
-            FROM `service`
-            WHERE user_id_user = :user_id
-        ';
-
-        // O indicador considera somente os serviços do usuário logado.
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            'user_id' => $userId,
-        ]);
-
-        $total = $statement->fetchColumn();
-
-        return is_string($total) ? $total : '0.00';
-    }
-
-    public function findLatestPendingByUser(int $userId): array
-    {
-        $sql = '
-            SELECT
-                id_service,
-                description,
-                price,
-                created_at
-            FROM `service`
-            WHERE user_id_user = :user_id
-              AND finished_at IS NULL
-            ORDER BY
-                created_at DESC,
-                id_service DESC
-            LIMIT 5
-        ';
-
-        /*
-         * A ausência da data de finalização define o serviço como pendente.
-         * A lista fica limitada aos cinco registros mais recentes.
-         */
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            'user_id' => $userId,
-        ]);
-
-        return $statement->fetchAll();
-    }
-
-    public function update(
-        int $serviceId,
-        string $description,
-        string $price
-    ): void {
-        $sql = '
-        UPDATE `service`
-        SET
-            description = :description,
-            price = :price
-        WHERE id_service = :service_id
-          AND finished_at IS NULL
-    ';
-
-        // Serviços finalizados não podem ter seus valores alterados.
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            'service_id' => $serviceId,
-            'description' => $description,
-            'price' => $price,
-        ]);
-    }
-
     /**
-     * Exclui um serviço pelo seu identificador.
+     * Relatório de serviços finalizados (RF15), filtrado por responsável e
+     * período de conclusão (RN15). Os totais valem para todo o resultado (RN17).
      *
-     * O retorno informa se algum registro realmente foi removido.
+     * @param array{user_id: int|null, start_date: string, end_date: string} $filters
      */
-    public function delete(int $serviceId): bool
+    public function commissionReport(array $filters, ?int $scopeUserId, int $page, int $perPage): array
     {
-        $sql = '
-        DELETE FROM `service`
-        WHERE id_service = :service_id
-    ';
+        $conditions = ['service.finished_at IS NOT NULL'];
+        $parameters = [];
 
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            'service_id' => $serviceId,
-        ]);
+        $userId = $scopeUserId ?? $filters['user_id'];
 
-        return $statement->rowCount() > 0;
-    }
+        if ($userId !== null) {
+            $conditions[] = 'service.user_id = :user_id';
+            $parameters['user_id'] = $userId;
+        }
 
-    // Finaliza um serviço pendente e registra o valor da comissão.
-    public function finish(int $serviceId, float $commission): bool
-    {
-        $sql = '
-        UPDATE `service`
-        SET
-            finished_at = CURRENT_TIMESTAMP,
-            commission_user = :commission
-        WHERE id_service = :service_id
-          AND finished_at IS NULL
-    ';
+        if ($filters['start_date'] !== '') {
+            $conditions[] = 'service.finished_at >= :start_date';
+            $parameters['start_date'] = $filters['start_date'] . ' 00:00:00';
+        }
 
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            // O formato com ponto decimal é o esperado pelo campo DECIMAL do MySQL.
-            'commission' => number_format($commission, 2, '.', ''),
-            'service_id' => $serviceId,
-        ]);
+        if ($filters['end_date'] !== '') {
+            $conditions[] = 'service.finished_at < DATE_ADD(:end_date, INTERVAL 1 DAY)';
+            $parameters['end_date'] = $filters['end_date'];
+        }
 
-        // Nenhuma linha alterada também indica que o serviço já estava finalizado.
-        return $statement->rowCount() > 0;
-    }
+        $where = ' WHERE ' . implode(' AND ', $conditions);
 
-    /**
-     * Retorna os principais números do usuário para o dashboard.
-     */
-    public function summaryByUser(int $userId): array
-    {
-        $sql = '
-        SELECT
-            COUNT(*) AS total_services,
-            SUM(
-                CASE
-                    WHEN finished_at IS NULL THEN 1
-                    ELSE 0
-                END
-            ) AS pending_services,
-            SUM(
-                CASE
-                    WHEN finished_at IS NOT NULL THEN 1
-                    ELSE 0
-                END
-            ) AS finished_services,
-            COALESCE(SUM(price), 0) AS total_value
-        FROM `service`
-        WHERE user_id_user = :user_id
-    ';
+        $result = $this->paginateQuery(
+            self::SELECT . $where . ' ORDER BY service.finished_at DESC, service.id_service DESC',
+            'SELECT COUNT(*) FROM `service`' . $where,
+            $parameters,
+            $page,
+            $perPage
+        );
 
-        $statement = $this->connection->prepare($sql);
-        $statement->execute([
-            'user_id' => $userId,
-        ]);
+        $totals = $this->connection->prepare(
+            'SELECT COUNT(*) AS services, COALESCE(SUM(price), 0) AS value,
+                    COALESCE(SUM(commission_user), 0) AS commission
+             FROM `service`' . $where
+        );
+        $totals->execute($parameters);
+        $result['totals'] = $totals->fetch();
 
-        $summary = $statement->fetch();
-
-        return [
-            'total_services' => (int) ($summary['total_services'] ?? 0),
-            'pending_services' => (int) ($summary['pending_services'] ?? 0),
-            'finished_services' => (int) ($summary['finished_services'] ?? 0),
-            'total_value' => (float) ($summary['total_value'] ?? 0),
-        ];
+        return $result;
     }
 }
