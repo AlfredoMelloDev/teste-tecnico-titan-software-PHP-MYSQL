@@ -4,7 +4,7 @@ Sistema web para pequenas empresas prestadoras de serviço registrarem os atendi
 
 Projeto Tecnológico em Desenvolvimento de Sistemas, do curso de Análise e Desenvolvimento de Sistemas da ULBRA. O projeto evolui uma base criada como teste técnico (cadastro de serviços e cálculo de comissão), acrescentando perfis de acesso, clientes, administração de usuários, relatório de comissões e as proteções de integridade definidas no levantamento de requisitos (RF01 a RF15, RNF01 a RNF08).
 
-- **Aplicação publicada:** _(informar o endereço após a publicação)_
+- **Aplicação publicada:** http://gestaoservicos.free.je (InfinityFree)
 - **Acesso para avaliação:** veja [Usuários de avaliação](#usuários-de-avaliação).
 
 ![Dashboard do gestor](docs/images/dashboard.png)
